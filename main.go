@@ -48,4 +48,5 @@ func main() {
 	}
 
 	// TODO: Simpan ke database atau ekspor ke Excel
+	// kocak
 }

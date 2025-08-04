@@ -8,7 +8,7 @@ import (
 )
 
 func ConnectDB() (*sql.DB, error) {
-	connString := "server=localhost;user id=sa;password=@7872238aA!;database=BlackList"
+	connString := "server=localhost;user id=sa;password=password;database=BlackList"
 	db, err := sql.Open("sqlserver", connString)
 	if err != nil {
 		return nil, fmt.Errorf("sql.Open error: %w", err)
