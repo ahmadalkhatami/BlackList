@@ -2,7 +2,7 @@ package models
 
 import "time"
 
-type CIF struct {
+type MASTER_NASABAH struct {
 	ID            int64
 	CIFNumber     string
 	NamaNasabah   string

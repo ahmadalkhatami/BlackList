@@ -11,7 +11,7 @@ import (
 
 // MatchCIFWithTeroris mencocokkan CIF dengan daftar teroris berdasarkan konfigurasi
 func MatchCIFWithTeroris(
-	cifs []models.CIF,
+	cifs []models.MASTER_NASABAH,
 	terorisList []models.MasterWatchlist,
 	configs []models.MatchingConfig,
 ) []models.MatchingResult {
@@ -83,7 +83,7 @@ func MatchCIFWithTeroris(
 
 	return results
 }
-func getCIFValueByField(cif models.CIF, field string) string {
+func getCIFValueByField(cif models.MASTER_NASABAH, field string) string {
 	switch field {
 	case "nama", "nama_nasabah":
 		return cif.NamaNasabah
