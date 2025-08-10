@@ -27,7 +27,14 @@ func main() {
 	}
 	defer db.Close()
 
-	// Step 2: Load data dari DB
+	// Step 2: Ambil batch_id berikutnya
+	batchID, err := services.GetNextBatchID(db)
+	if err != nil {
+		log.Fatalf("❌ Gagal ambil batch ID: %v", err)
+	}
+	fmt.Printf("📌 Menggunakan batch_id: %d\n", batchID)
+
+	// Step 3: Load data dari DB
 	fmt.Println("📦 Memuat data CIF dan watchlist...")
 	cifList, err := services.LoadCIF(db)
 	if err != nil {
@@ -44,18 +51,31 @@ func main() {
 		log.Fatalf("❌ Gagal load MATCHING_CONFIG: %v", err)
 	}
 
-	// Step 3: Proses Matching
+	// Step 4: Proses Matching
 	fmt.Printf("🔍 Memproses %d data CIF terhadap %d data watchlist...\n", len(cifList), len(terorisList))
-	results := services.MatchCIFWithTeroris(cifList, terorisList, configList)
+	results := services.MatchCIFWithTeroris(db, cifList, terorisList, configList)
+
+	// Set batch_id untuk semua hasil
+	for i := range results {
+		results[i].BatchID = batchID
+	}
 
 	fmt.Printf("✅ Ditemukan %d hasil match\n", len(results))
 
-	// Step 4: Cetak hasil (atau simpan ke DB/Excel)
-	for _, result := range results {
-		fmt.Printf("[MATCH] CIF: %s | Score: %.2f | Watchlist ID: %d\n",
-			result.CIFNumber, result.SimilarityScore, result.WatchlistID)
+	// Step 5: Simpan hasil ke database
+	if len(results) > 0 {
+		err = services.InsertMatchingResults(db, results)
+		if err != nil {
+			log.Fatalf("❌ Gagal insert MATCHING_RESULTS: %v", err)
+		}
+		fmt.Printf("💾 %d hasil match berhasil disimpan ke database (batch_id: %d)\n", len(results), batchID)
+	} else {
+		fmt.Println("ℹ️ Tidak ada hasil match yang disimpan.")
 	}
 
-	// TODO: Simpan ke database atau ekspor ke Excel
-	// kocak
+	// Step 6: Cetak hasil
+	for _, result := range results {
+		fmt.Printf("[MATCH] Batch: %d | CIF: %s | Score: %.2f | Watchlist ID: %d\n",
+			result.BatchID, result.CIFNumber, result.SimilarityScore, result.WatchlistID)
+	}
 }
