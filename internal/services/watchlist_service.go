@@ -1,7 +1,7 @@
 package services
 
 import (
-	"BlackListWorker/models"
+	"BlackListWorker/internal/domain/models"
 	"database/sql"
 )
 

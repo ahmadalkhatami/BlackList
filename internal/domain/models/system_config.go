@@ -10,5 +10,5 @@ type SystemConfig struct {
 	Description string
 	CreatedBy   int64
 	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	UpdatedAt   *time.Time
 }

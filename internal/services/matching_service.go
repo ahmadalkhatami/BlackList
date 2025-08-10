@@ -1,17 +1,16 @@
 package services
 
 import (
+	"BlackListWorker/internal/domain/models"
 	"strings"
 	"time"
-
-	"BlackListWorker/models"
 
 	"github.com/agext/levenshtein"
 )
 
 // MatchCIFWithTeroris mencocokkan CIF dengan daftar teroris berdasarkan konfigurasi
 func MatchCIFWithTeroris(
-	cifs []models.MASTER_NASABAH,
+	cifs []models.MasterNasabah,
 	terorisList []models.MasterWatchlist,
 	configs []models.MatchingConfig,
 ) []models.MatchingResult {
@@ -83,7 +82,7 @@ func MatchCIFWithTeroris(
 
 	return results
 }
-func getCIFValueByField(cif models.MASTER_NASABAH, field string) string {
+func getCIFValueByField(cif models.MasterNasabah, field string) string {
 	switch field {
 	case "nama", "nama_nasabah":
 		return cif.NamaNasabah

@@ -5,7 +5,7 @@ import (
 	"log"
 
 	"BlackListWorker/config"
-	"BlackListWorker/services"
+	"BlackListWorker/internal/services"
 
 	"github.com/joho/godotenv"
 )

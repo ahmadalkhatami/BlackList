@@ -11,5 +11,5 @@ type MatchingConfig struct {
 	IsActive          bool
 	CreatedBy         int64
 	CreatedAt         time.Time
-	UpdatedAt         time.Time
+	UpdatedAt         *time.Time
 }

@@ -3,11 +3,11 @@ package models
 import "time"
 
 type MatchingResult struct {
-	ID              int64
-	BatchID         int64
+	ID              string
+	BatchID         string
 	CIFNumber       string
 	CustomerName    string
-	WatchlistID     int64
+	WatchlistID     string
 	WatchlistSource string
 	SimilarityScore float64
 	Status          string // PENDING, REVIEWED, etc.
