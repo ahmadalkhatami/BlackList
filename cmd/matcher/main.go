@@ -1,61 +1,30 @@
 package main
 
 import (
-	"fmt"
-	"log"
-
 	"BlackListWorker/config"
-	"BlackListWorker/internal/services"
-
-	"github.com/joho/godotenv"
+	"BlackListWorker/internal/db"
+	"BlackListWorker/internal/domain/repository"
+	"log"
 )
 
-func init() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Println("No .env file found, skipping...")
-	}
-}
-
 func main() {
-	fmt.Println("🚀 BlackListWorker started...")
+	cfg := config.Load()
 
-	// Step 1: Koneksi database
-	db, err := config.ConnectDB()
+	connector := db.SQLServerConnector{
+		Server:  cfg.DBServer,
+		User:    cfg.DBUser,
+		Password: cfg.DBPassword,
+		Database: cfg.DBName,
+	}
+
+	sqlDB, err := connector.Connect()
 	if err != nil {
-		log.Fatalf("❌ Gagal koneksi ke DB: %v", err)
+		log.Fatalf("Failed to connect to database: %v", err)
 	}
-	defer db.Close()
+	
+	defer sqlDB.Close()
 
-	// Step 2: Load data dari DB
-	fmt.Println("📦 Memuat data CIF dan watchlist...")
-	cifList, err := services.LoadCIF(db)
-	if err != nil {
-		log.Fatalf("❌ Gagal load CIF: %v", err)
-	}
-
-	terorisList, err := services.LoadMasterTeroris(db)
-	if err != nil {
-		log.Fatalf("❌ Gagal load MASTER_TERORIS: %v", err)
-	}
-
-	configList, err := services.LoadMatchingConfig(db)
-	if err != nil {
-		log.Fatalf("❌ Gagal load MATCHING_CONFIG: %v", err)
-	}
-
-	// Step 3: Proses Matching
-	fmt.Printf("🔍 Memproses %d data CIF terhadap %d data watchlist...\n", len(cifList), len(terorisList))
-	results := services.MatchCIFWithTeroris(cifList, terorisList, configList)
-
-	fmt.Printf("✅ Ditemukan %d hasil match\n", len(results))
-
-	// Step 4: Cetak hasil (atau simpan ke DB/Excel)
-	for _, result := range results {
-		fmt.Printf("[MATCH] CIF: %s | Score: %.2f | Watchlist ID: %d\n",
-			result.CIFNumber, result.SimilarityScore, result.WatchlistID)
-	}
-
-	// TODO: Simpan ke database atau ekspor ke Excel
-	// kocak
+	masterMatchingRepo := repository.NewSQLMasterMatchingRepository(sqlDB)
+	masterMatchingConfig := repository.NewSQLMatchingConfigRepository(sqlDB)
+	masterTerorisRepo := repository.NewSQLMasterTerorisRepository(sqlDB)
 }
