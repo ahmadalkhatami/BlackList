@@ -1,58 +1,81 @@
 package services
 
 import (
-	"BlackListWorker/models"
-	"database/sql"
-	"strconv"
-	"strings"
+	"BlackListWorker/internal/domain/models"
+	"BlackListWorker/internal/domain/repository"
 )
 
-const defaultThreshold = 0.85
-
-// GetSystemConfigByKey mengambil konfigurasi dari table SYSTEM_CONFIG berdasarkan key
-func GetSystemConfigByKey(db *sql.DB, key string) (models.SystemConfig, error) {
-	var cfg models.SystemConfig
-
-	query := `
-		SELECT id, config_key, config_value, config_type, description
-		FROM SYSTEM_CONFIG
-		WHERE config_key = @p1
-	`
-
-	err := db.QueryRow(query, key).Scan(
-		&cfg.ID,
-		&cfg.ConfigKey,
-		&cfg.ConfigValue,
-		&cfg.ConfigType,
-		&cfg.Description,
-	)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return models.SystemConfig{}, nil
-		}
-		return models.SystemConfig{}, err
-	}
-
-	// Trim untuk menghindari spasi ekstra
-	cfg.ConfigKey = strings.TrimSpace(cfg.ConfigKey)
-	cfg.ConfigValue = strings.TrimSpace(cfg.ConfigValue)
-	cfg.ConfigType = strings.TrimSpace(cfg.ConfigType)
-
-	return cfg, nil
+type GetSystemConfigByKey interface {
+	GetSystemConfig(configKey string) (models.SystemConfig, error)
+	GetJoinedMatchingConfig() ([]JoinedMatchingConfig, error)
 }
 
-// GetThresholdFromConfig mengambil nilai threshold match dari config
-func GetThresholdFromConfig(db *sql.DB, key string) float64 {
-	cfg, err := GetSystemConfigByKey(db, key)
-	if err != nil || cfg.ConfigKey == "" {
-		return defaultThreshold
+type JoinedMatchingConfig struct {
+	Id                string
+	WatchlistSource   string
+	Type              bool
+	MatchingId        string
+	FieldName         string
+	FieldWeight       float64
+	MatchingAlgorithm string
+	IsActive          bool
+}
+
+type SystemConfigImpl struct {
+	MasterMatching       repository.MasterMatchingRepository
+	MasterMatchingConfig repository.MasterMatchingConfigRepository
+	SystemConfig         repository.SystemConfigRepository
+}
+
+func NewConfigService(
+	masterMatching repository.MasterMatchingRepository,
+	masterMatchingConfig repository.MasterMatchingConfigRepository,
+	systemConfig repository.SystemConfigRepository) GetSystemConfigByKey {
+	return &SystemConfigImpl{
+		MasterMatching:       masterMatching,
+		MasterMatchingConfig: masterMatchingConfig,
+		SystemConfig:         systemConfig,
+	}
+}
+
+func (s *SystemConfigImpl) GetSystemConfig(cfgKey string) (models.SystemConfig, error) {
+	record, err := s.SystemConfig.LoadSystemConfig(cfgKey)
+	if err != nil {
+		return models.SystemConfig{}, err
+	}
+	return record, nil
+}
+
+func (s *SystemConfigImpl) GetJoinedMatchingConfig() ([]JoinedMatchingConfig, error) {
+
+	matchingList, err := s.MasterMatching.LoadMasterMatching()
+	if err != nil {
+		return nil, err
 	}
 
-	if cfg.ConfigType == "DECIMAL" || cfg.ConfigType == "INTEGER" {
-		if val, err := strconv.ParseFloat(cfg.ConfigValue, 64); err == nil {
-			return val
+	configList, err := s.MasterMatchingConfig.LoadMasterMatchingConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	var result []JoinedMatchingConfig
+
+	for _, m := range matchingList {
+		for _, c := range configList {
+			if m.Id == c.MatchingId {
+				result = append(result, JoinedMatchingConfig{
+					Id:                c.Id,
+					WatchlistSource:   m.WatchlistSource,
+					Type:              m.Type,
+					MatchingId:        c.MatchingId,
+					FieldName:         c.FieldName,
+					FieldWeight:       c.FieldWeight,
+					MatchingAlgorithm: c.MatchingAlgorithm,
+					IsActive:          c.IsActive,
+				})
+			}
 		}
 	}
 
-	return defaultThreshold
+	return result, nil
 }

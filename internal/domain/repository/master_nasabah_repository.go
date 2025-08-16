@@ -6,15 +6,19 @@ import (
 )
 
 type MasterNasabahRepository interface {
-	LoadMasterNasabah(query string) ([]models.MasterNasabah, error)
+	LoadMasterNasabah() ([]models.MasterNasabah, error)
 }
 
 type SQLMasterNasabahRepository struct {
 	DB *sql.DB
 }
 
-func (r SQLMasterNasabahRepository) LoadMasterNasabah(query string) ([]models.MasterNasabah, error) {
-	rows, err := r.DB.Query(query)
+func NewSQLMasterNasabahRepository(db *sql.DB) MasterNasabahRepository {
+	return &SQLMasterNasabahRepository{DB: db}
+}
+
+func (r SQLMasterNasabahRepository) LoadMasterNasabah() ([]models.MasterNasabah, error) {
+	rows, err := r.DB.Query("SELECT [Id], [CIFNumber], [NamaNasabah], [TempatLahir], [TanggalLahir], [KTP], [NPWP], [NoPaspor], [StatusNasabah], [CreatedAt], [UpdatedAt] FROM [dbo].[MASTER_NASABAH] WHERE StatusNasabah = 'AKTIF';")
 	if err != nil {
 		return nil, err
 	}

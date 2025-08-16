@@ -3,6 +3,9 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"log"
+
+	_ "github.com/denisenkom/go-mssqldb"
 )
 
 // private means accessible only within the same package
@@ -15,15 +18,15 @@ type DBConnector interface {
 
 // SQLServerConnector implements DBConnector for SQL Server
 // lower case prefix for private
-type sQLServerConnector struct {
+type sqlServerConnector struct {
 	server   string
 	user     string
 	password string
 	database string
 }
 
-func NewSQLServerConnector(server, user, password, database string) *sQLServerConnector {
-	return &sQLServerConnector{
+func NewSQLServerConnector(server, user, password, database string) *sqlServerConnector {
+	return &sqlServerConnector{
 		server:   server,
 		user:     user,
 		password: password,
@@ -31,11 +34,26 @@ func NewSQLServerConnector(server, user, password, database string) *sQLServerCo
 	}
 }
 
-func (c sQLServerConnector) Connect() (*sql.DB, error) {
-	connString := fmt.Sprintf("server=%s;user id=%s;password=%s;database=%s", c.server, c.user, c.password, c.database)
+func (c *sqlServerConnector) Connect() (*sql.DB, error) {
+	// connString := fmt.Sprintf("server=%s;user id=%s;password=%s;database=%s",
+	// 	c.server, c.user, c.password, c.database)
+
+	// connString := fmt.Sprintf("sqlserver://%s:%s@%s?database=%s",
+	// 	c.user, c.password, c.server, c.database)
+
+	connString := fmt.Sprintf("server=%s;user id=%s;password=%s;database=%s;encrypt=disable",
+		c.server, c.user, c.password, c.database)
+
+	log.Printf("Connecting with: sqlserver://%s:****@%s?database=%s",
+		c.user, c.server, c.database)
+
 	db, err := sql.Open("sqlserver", connString)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("gagal membuka koneksi: %w", err)
+	}
+
+	if err := db.Ping(); err != nil {
+		return nil, fmt.Errorf("gagal ping ke SQL Server: %w", err)
 	}
 
 	return db, nil

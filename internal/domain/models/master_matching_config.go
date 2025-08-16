@@ -1,10 +1,11 @@
 package models
 
 type MasterMatchingConfig struct {
-	Id                string // use NEWSEQUENTIALID() in sqlserver for unique like uuid but more sequential for better indexing
+	// use NEWSEQUENTIALID() in sqlserver for unique like uuid but more sequential for better indexing
+	Id                string
 	MatchingId        string
 	FieldName         string
-	FieldWeight       int16
+	FieldWeight       float64
 	MatchingAlgorithm string
 	IsActive          bool
 }

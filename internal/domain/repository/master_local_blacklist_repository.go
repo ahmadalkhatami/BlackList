@@ -6,15 +6,19 @@ import (
 )
 
 type MasterLocalBlacklistRepository interface {
-	LoadMasterLocalBlacklist(query string) ([]models.MasterLocalBlacklist, error)
+	LoadMasterLocalBlacklist() ([]models.MasterLocalBlacklist, error)
 }
 
 type SQLMasterLocalBlacklistRepository struct {
 	DB *sql.DB
 }
 
-func (r SQLMasterLocalBlacklistRepository) LoadMasterLocalBlacklist(query string) ([]models.MasterLocalBlacklist, error) {
-	rows, err := r.DB.Query(query)
+func NewSQLMasterLocalBlacklistRepository(db *sql.DB) MasterLocalBlacklistRepository {
+	return &SQLMasterLocalBlacklistRepository{DB: db}
+}
+
+func (r SQLMasterLocalBlacklistRepository) LoadMasterLocalBlacklist() ([]models.MasterLocalBlacklist, error) {
+	rows, err := r.DB.Query("SELECT [Id] ,[Nama] ,[Alias1] ,[Alias2] ,[Alias3] ,[Alias4] ,[Type] ,[TempatLahir] ,[TanggalLahir] ,[KTP] ,[NPWP] ,[NoPaspor] ,[CreatedAt] ,[UpdatedAt] ,[IsActive] FROM [dbo].[MASTER_LOCAL_BLACKLIST] WHERE [IsActive] = 1;")
 	if err != nil {
 		return nil, err
 	}

@@ -6,15 +6,19 @@ import (
 )
 
 type MasterMatchingRepository interface {
-	LoadMasterMatching(query string) ([]models.MasterMatching, error)
+	LoadMasterMatching() ([]models.MasterMatching, error)
 }
 
 type SQLMasterMatchingRepository struct {
 	DB *sql.DB
 }
 
-func (r SQLMasterMatchingRepository) LoadMasterMatching(query string) ([]models.MasterMatching, error) {
-	rows, err := r.DB.Query(query)
+func NewSQLMasterMatchingRepository(db *sql.DB) MasterMatchingRepository {
+	return &SQLMasterMatchingRepository{DB: db}
+}
+
+func (r SQLMasterMatchingRepository) LoadMasterMatching() ([]models.MasterMatching, error) {
+	rows, err := r.DB.Query("SELECT [Id] ,[Name] ,[WatchlistSource] ,[IsIndividual] ,[Description] ,[IsActive] FROM [dbo].[MASTER_MATCHING] WHERE [IsActive] = 1;")
 	if err != nil {
 		return nil, err
 	}

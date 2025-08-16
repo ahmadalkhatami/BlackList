@@ -1,10 +1,12 @@
 package models
 
 type MasterMatching struct {
-	Id string // use NEWSEQUENTIALID() in sqlserver for unique like uuid but more sequential for better indexing
-	// Name string
+	// use NEWSEQUENTIALID() in sqlserver for unique like uuid but more sequential for better indexing
+	Id              string
 	WatchlistSource string
-	Type            bool // IsIndividual 1 for Individu, 0 for Corporate
-	// Description string
+	//Type <-> IsIndividual 1 for INDIVIDU, 0 for CORPORATE
+	Type     bool
 	IsActive bool
+	// Name string
+	// Description string
 }

@@ -6,15 +6,19 @@ import (
 )
 
 type MasterTerorisRepository interface {
-	LoadMasterTeroris(query string) ([]models.MasterTeroris, error)
+	LoadMasterTeroris() ([]models.MasterTeroris, error)
 }
 
 type SQLMasterTerorisRepository struct {
 	DB *sql.DB
 }
 
-func (r SQLMasterTerorisRepository) LoadMasterTeroris(query string) ([]models.MasterTeroris, error) {
-	rows, err := r.DB.Query(query)
+func NewSQLMasterTerorisRepository(db *sql.DB) MasterTerorisRepository {
+	return &SQLMasterTerorisRepository{DB: db}
+}
+
+func (r SQLMasterTerorisRepository) LoadMasterTeroris() ([]models.MasterTeroris, error) {
+	rows, err := r.DB.Query("SELECT [Id], [Nama], [Alias1], [Alias2], [Alias3], [Alias4], [Type], [TempatLahir], [TanggalLahir], [KTP], [NPWP], [NoPaspor], [CreatedAt], [UpdatedAt], [IsActive] FROM [dbo].[MASTER_TERORIS] WHERE [IsActive] = 1;")
 	if err != nil {
 		return nil, err
 	}

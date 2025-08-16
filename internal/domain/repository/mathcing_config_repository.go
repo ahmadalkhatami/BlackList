@@ -6,15 +6,19 @@ import (
 )
 
 type MasterMatchingConfigRepository interface {
-	LoadMasterMatchingConfig(query string) ([]models.MasterMatchingConfig, error)
+	LoadMasterMatchingConfig() ([]models.MasterMatchingConfig, error)
 }
 
 type SQLMasterMatchingConfigRepository struct {
 	DB *sql.DB
 }
 
-func (r SQLMasterMatchingConfigRepository) LoadMasterMatchingConfig(query string) ([]models.MasterMatchingConfig, error) {
-	rows, err := r.DB.Query(query)
+func NewSQLMasterMatchingConfigRepository(db *sql.DB) MasterMatchingConfigRepository {
+	return &SQLMasterMatchingConfigRepository{DB: db}
+}
+
+func (r SQLMasterMatchingConfigRepository) LoadMasterMatchingConfig() ([]models.MasterMatchingConfig, error) {
+	rows, err := r.DB.Query("SELECT [Id], [MatchingId], [FieldName], [FieldWeight], [MatchingAlgorithm], [IsActive], [CreatedBy], [CreatedAt], [UpdatedAt] FROM [dbo].[MASTER_MATCHING_CONFIG] WHERE [IsActive] = 1;")
 	if err != nil {
 		return nil, err
 	}

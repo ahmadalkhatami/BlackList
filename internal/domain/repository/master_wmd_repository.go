@@ -6,15 +6,19 @@ import (
 )
 
 type MasterWMDRepository interface {
-	LoadMasterWMD(query string) ([]models.MasterWMD, error)
+	LoadMasterWMD() ([]models.MasterWMD, error)
 }
 
 type SQLMasterWMDRepository struct {
 	DB *sql.DB
 }
 
-func (r SQLMasterWMDRepository) LoadMasterWMD(query string) ([]models.MasterWMD, error) {
-	rows, err := r.DB.Query(query)
+func NewSQLMasterWMDRepository(db *sql.DB) MasterWMDRepository {
+	return &SQLMasterWMDRepository{DB: db}
+}
+
+func (r SQLMasterWMDRepository) LoadMasterWMD() ([]models.MasterWMD, error) {
+	rows, err := r.DB.Query("SELECT [Id], [Nama], [Alias1], [Alias2], [Alias3], [Alias4], [Alias5], [Alias6], [Alias7], [Alias8], [Alias9], [Alias10], [Type], [TempatLahir], [TanggalLahir], [KTP], [NPWP], [NoPaspor], [CreatedAt], [UpdatedAt], [IsActive] FROM [dbo].[MASTER_WMD] WHERE [IsActive] = 1;")
 	if err != nil {
 		return nil, err
 	}
