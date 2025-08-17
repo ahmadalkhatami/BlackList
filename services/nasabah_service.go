@@ -7,8 +7,9 @@ import (
 
 func LoadCIF(db *sql.DB) ([]models.MASTER_NASABAH, error) {
 	rows, err := db.Query(`
-		SELECT cif_number, nama_nasabah, tempat_lahir, tanggal_lahir, ktp, npwp, no_paspor 
+		SELECT CifNumber, NamaNasabah, TempatLahir, TanggalLahir, Ktp, Npwp, NoPaspor 
 		FROM MASTER_NASABAH
+		WHERE StatusNasabah = 'ACTIVE'
 	`)
 	if err != nil {
 		return nil, err

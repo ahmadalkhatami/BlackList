@@ -14,10 +14,20 @@ func GetSystemConfigByKey(db *sql.DB, key string) (models.SystemConfig, error) {
 	var cfg models.SystemConfig
 
 	query := `
-		SELECT id, config_key, config_value, config_type, description
+		SELECT Id, ConfigKey, ConfigValue, ConfigType, Description
 		FROM SYSTEM_CONFIG
-		WHERE config_key = @p1
+		WHERE ConfigKey = @p1
 	`
+
+	// query := `
+	// 	;WITH BASECONFIG AS (
+	// 	SELECT MM.Id, MMC.MatchingId, WatchlistSource, FieldName, FieldWeight, MatchingAlgorithm, mmc.IsActive, CreatedBy, CreatedAt, UpdatedAt 
+	// 	FROM MASTER_MATCHING mm WITH(NOLOCK)
+	// 	INNER JOIN MASTER_MATCHING_CONFIG mmc WITH(NOLOCK) ON mm.Id = mmc.MatchingId AND mmc.IsActive = 1 AND mm.IsActive = 1
+	// 	)
+	// 	SELECT * FROM BASECONFIG
+	// `
+	
 
 	err := db.QueryRow(query, key).Scan(
 		&cfg.ID,
