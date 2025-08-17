@@ -8,9 +8,10 @@ import (
 // LoadMasterTeroris mengambil data dari tabel MASTER_TERORIS
 func LoadMasterTeroris(db *sql.DB) ([]models.MasterWatchlist, error) {
 	rows, err := db.Query(`
-		SELECT id, nama, alias1, alias2, alias3, alias4, tempat_lahir, tanggal_lahir, ktp, npwp, no_paspor, created_at, updated_at, is_active 
+		SELECT Id, Nama, Alias1, Alias2, Alias3, Alias4, TempatLahir, TanggalLahir, Ktp, Npwp, NoPaspor, CreatedAt, UpdatedAt, IsActive 
 		FROM MASTER_TERORIS
-		WHERE is_active = 1
+		WHERE IsActive = 1
+		AND Nama = 'Prince Eddie Reinger'
 	`)
 	if err != nil {
 		return nil, err
@@ -34,7 +35,7 @@ func LoadMasterTeroris(db *sql.DB) ([]models.MasterWatchlist, error) {
 
 		// Gabungkan alias
 		m.Alias = combineAliases(alias1, alias2, alias3, alias4)
-		m.Source = "DTTOT" // ini penting untuk pemrosesan di matching
+		m.Source = "MASTER_TERORIS" // ini penting untuk pemrosesan di matching
 
 		result = append(result, m)
 	}
