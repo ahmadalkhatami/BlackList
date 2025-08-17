@@ -5,12 +5,12 @@ import (
 	"BlackListWorker/internal/domain/repository"
 )
 
-type systemConfigInterface interface {
+type SystemConfigInterface interface {
 	GetSystemConfig(configKey string) (models.SystemConfig, error)
 	GetJoinedMatchingConfig() ([]models.JoinedMatchingConfig, error)
 }
 
-type systemConfigImpl struct {
+type SystemConfigImpl struct {
 	MasterMatching       repository.MasterMatchingRepository
 	MasterMatchingConfig repository.MasterMatchingConfigRepository
 	SystemConfig         repository.SystemConfigRepository
@@ -19,15 +19,15 @@ type systemConfigImpl struct {
 func NewConfigService(
 	masterMatching repository.MasterMatchingRepository,
 	masterMatchingConfig repository.MasterMatchingConfigRepository,
-	systemConfig repository.SystemConfigRepository) systemConfigInterface {
-	return &systemConfigImpl{
+	systemConfig repository.SystemConfigRepository) SystemConfigInterface {
+	return &SystemConfigImpl{
 		MasterMatching:       masterMatching,
 		MasterMatchingConfig: masterMatchingConfig,
 		SystemConfig:         systemConfig,
 	}
 }
 
-func (s *systemConfigImpl) GetSystemConfig(cfgKey string) (models.SystemConfig, error) {
+func (s *SystemConfigImpl) GetSystemConfig(cfgKey string) (models.SystemConfig, error) {
 	record, err := s.SystemConfig.LoadSystemConfig(cfgKey)
 	if err != nil {
 		return models.SystemConfig{}, err
@@ -35,7 +35,7 @@ func (s *systemConfigImpl) GetSystemConfig(cfgKey string) (models.SystemConfig, 
 	return record, nil
 }
 
-func (s *systemConfigImpl) GetJoinedMatchingConfig() ([]models.JoinedMatchingConfig, error) {
+func (s *SystemConfigImpl) GetJoinedMatchingConfig() ([]models.JoinedMatchingConfig, error) {
 
 	matchingList, err := s.MasterMatching.LoadMasterMatching()
 	if err != nil {
@@ -54,13 +54,13 @@ func (s *systemConfigImpl) GetJoinedMatchingConfig() ([]models.JoinedMatchingCon
 			if m.Id == c.MatchingId {
 				result = append(result, models.JoinedMatchingConfig{
 					Id:                c.Id,
-					WatchlistSource:   m.WatchlistSource,
-					Type:              m.Type,
 					MatchingId:        c.MatchingId,
 					FieldName:         c.FieldName,
 					FieldWeight:       c.FieldWeight,
+					WatchlistSource:   m.WatchlistSource,
+					Type:              m.Type,
 					MatchingAlgorithm: c.MatchingAlgorithm,
-					IsActive:          c.IsActive,
+					IsActive:          c.IsActive && m.IsActive,
 				})
 			}
 		}

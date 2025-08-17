@@ -9,6 +9,12 @@ type MasterWMD struct {
 	Alias2       string
 	Alias3       string
 	Alias4       string
+	Alias5       string
+	Alias6       string
+	Alias7       string
+	Alias8       string
+	Alias9       string
+	Alias10      string
 	Type         string // INDIVIDU | CORPORATE
 	TempatLahir  string
 	TanggalLahir time.Time
