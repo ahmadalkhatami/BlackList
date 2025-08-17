@@ -10,7 +10,6 @@ func LoadCIF(db *sql.DB) ([]models.MASTER_NASABAH, error) {
 		SELECT CifNumber, NamaNasabah, TempatLahir, TanggalLahir, Ktp, Npwp, NoPaspor 
 		FROM MASTER_NASABAH
 		WHERE StatusNasabah = 'ACTIVE'
-		AND NamaNasabah = 'Prince Eddie Reinger'
 	`)
 	if err != nil {
 		return nil, err

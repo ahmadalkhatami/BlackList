@@ -11,7 +11,6 @@ func LoadMasterTeroris(db *sql.DB) ([]models.MasterWatchlist, error) {
 		SELECT Id, Nama, Alias1, Alias2, Alias3, Alias4, TempatLahir, TanggalLahir, Ktp, Npwp, NoPaspor, CreatedAt, UpdatedAt, IsActive 
 		FROM MASTER_TERORIS
 		WHERE IsActive = 1
-		AND Nama = 'Prince Eddie Reinger'
 	`)
 	if err != nil {
 		return nil, err
