@@ -9,15 +9,15 @@ type MasterNasabahRepository interface {
 	LoadMasterNasabah() ([]models.MasterNasabah, error)
 }
 
-type SQLMasterNasabahRepository struct {
+type sqlMasterNasabahRepository struct {
 	DB *sql.DB
 }
 
 func NewSQLMasterNasabahRepository(db *sql.DB) MasterNasabahRepository {
-	return &SQLMasterNasabahRepository{DB: db}
+	return &sqlMasterNasabahRepository{DB: db}
 }
 
-func (r SQLMasterNasabahRepository) LoadMasterNasabah() ([]models.MasterNasabah, error) {
+func (r sqlMasterNasabahRepository) LoadMasterNasabah() ([]models.MasterNasabah, error) {
 	rows, err := r.DB.Query("SELECT [Id], [CIFNumber], [NamaNasabah], [TempatLahir], [TanggalLahir], [KTP], [NPWP], [NoPaspor], [StatusNasabah], [CreatedAt], [UpdatedAt] FROM [dbo].[MASTER_NASABAH] WHERE StatusNasabah = 'AKTIF';")
 	if err != nil {
 		return nil, err

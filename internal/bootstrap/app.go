@@ -15,6 +15,8 @@ func NewApp() *app {
 }
 
 func (a *app) Start() error {
+
+	config.LoadEnv()
 	dbConfig := config.Load()
 
 	connector := db.NewSQLServerConnector(dbConfig.DBServer, dbConfig.DBUser, dbConfig.DBPassword, dbConfig.DBName)
@@ -24,14 +26,13 @@ func (a *app) Start() error {
 	}
 	defer sqlDB.Close()
 
-	fmt.Println("Koneksi database berhasil!")
-
-	rows, err := sqlDB.Query("SELECT DB_NAME() AS CurrentDB")
-	var currentDB string
-	for rows.Next() {
-		rows.Scan(&currentDB)
-	}
-	fmt.Println("Current Database:", currentDB)
+	/*
+		rows, err := sqlDB.Query("SELECT DB_NAME() AS CurrentDB")
+		var currentDB string
+		for rows.Next() {
+			rows.Scan(&currentDB)
+		}
+		fmt.Println("Current Database:", currentDB) */
 
 	masterMatchingRepo := repository.NewSQLMasterMatchingRepository(sqlDB)
 	masterMatchingConfigRepo := repository.NewSQLMasterMatchingConfigRepository(sqlDB)

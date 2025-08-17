@@ -3,7 +3,6 @@ package db
 import (
 	"database/sql"
 	"fmt"
-	"log"
 
 	_ "github.com/denisenkom/go-mssqldb"
 )
@@ -35,17 +34,9 @@ func NewSQLServerConnector(server, user, password, database string) *sqlServerCo
 }
 
 func (c *sqlServerConnector) Connect() (*sql.DB, error) {
-	// connString := fmt.Sprintf("server=%s;user id=%s;password=%s;database=%s",
-	// 	c.server, c.user, c.password, c.database)
 
-	// connString := fmt.Sprintf("sqlserver://%s:%s@%s?database=%s",
-	// 	c.user, c.password, c.server, c.database)
-
-	connString := fmt.Sprintf("server=%s;user id=%s;password=%s;database=%s;encrypt=disable",
+	connString := fmt.Sprintf("server=%s;user id=%s;password=%s;database=%s",
 		c.server, c.user, c.password, c.database)
-
-	log.Printf("Connecting with: sqlserver://%s:****@%s?database=%s",
-		c.user, c.server, c.database)
 
 	db, err := sql.Open("sqlserver", connString)
 	if err != nil {

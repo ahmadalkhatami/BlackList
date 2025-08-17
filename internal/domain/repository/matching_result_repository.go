@@ -10,15 +10,15 @@ type MatchingResultRepository interface {
 	SaveMatchingResult(results []models.MatchingResult) error
 }
 
-type SQLMatchingResultRepository struct {
+type sqlMatchingResultRepository struct {
 	DB *sql.DB
 }
 
 func NewSQLMatchingResultRepository(db *sql.DB) MatchingResultRepository {
-	return &SQLMatchingResultRepository{DB: db}
+	return &sqlMatchingResultRepository{DB: db}
 }
 
-func (r SQLMatchingResultRepository) LoadMatchingResult(query string) ([]models.MatchingResult, error) {
+func (r sqlMatchingResultRepository) LoadMatchingResult(query string) ([]models.MatchingResult, error) {
 	rows, err := r.DB.Query(query)
 	if err != nil {
 		return nil, err
@@ -49,7 +49,7 @@ func (r SQLMatchingResultRepository) LoadMatchingResult(query string) ([]models.
 	return records, nil
 }
 
-func (r *SQLMatchingResultRepository) SaveMatchingResult(results []models.MatchingResult) error {
+func (r *sqlMatchingResultRepository) SaveMatchingResult(results []models.MatchingResult) error {
 	trx, err := r.DB.Begin()
 	if err != nil {
 		return err
