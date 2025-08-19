@@ -9,7 +9,7 @@ func LoadCIF(db *sql.DB) ([]models.MASTER_NASABAH, error) {
 	rows, err := db.Query(`
 		SELECT CifNumber, NamaNasabah, TempatLahir, TanggalLahir, Ktp, Npwp, NoPaspor 
 		FROM MASTER_NASABAH
-		WHERE StatusNasabah = 'ACTIVE'
+		WHERE StatusNasabah = 'ACTIVE' AND NamaNasabah = 'AHMADElijah Corkery'
 	`)
 	if err != nil {
 		return nil, err
