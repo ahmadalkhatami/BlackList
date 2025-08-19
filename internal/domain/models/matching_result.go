@@ -7,7 +7,7 @@ type MatchingResult struct {
 	BatchID         string
 	CIFNumber       string
 	CustomerName    string
-	WatchlistID     string
+	WatchlistID     int64
 	WatchlistSource string
 	SimilarityScore float64
 	Status          string // PENDING, REVIEWED, etc.

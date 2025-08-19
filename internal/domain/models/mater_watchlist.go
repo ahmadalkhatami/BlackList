@@ -3,9 +3,10 @@ package models
 import "time"
 
 type MasterWatchlist struct {
-	ID           int64
-	Nama         string
-	Aliases      map[string]interface{}
+	ID   int64
+	Nama string
+	// Aliases      map[string]interface{}
+	Aliases      []string
 	TempatLahir  string
 	TanggalLahir time.Time
 	KTP          string

@@ -54,7 +54,7 @@ func (wm *WorkerManager) Run(tableA, tableB []models.MasterNasabah) []models.Mat
 							BatchID:         "123", // make function for generate batching ID
 							CIFNumber:       a.CIFNumber,
 							CustomerName:    a.NamaNasabah,
-							WatchlistID:     "123", //will get from master_mathing and master_matching_config
+							WatchlistID:     123, //will get from master_mathing and master_matching_config
 							WatchlistSource: "",
 							SimilarityScore: score,
 							Status:          "",

@@ -5,7 +5,6 @@ import (
 	"BlackListWorker/internal/db"
 	"BlackListWorker/internal/domain/models"
 	"BlackListWorker/internal/domain/repository"
-	"BlackListWorker/internal/services"
 	"errors"
 	"fmt"
 )
@@ -63,11 +62,60 @@ func (s *MatchServiceImpl) RunMatch(configID int) ([]models.MatchingResult, erro
 	masterMatchingConfigRepo := repository.NewSQLMasterMatchingConfigRepository(sqlDB)
 	systemConfigRepo := repository.NewSQLSystemConfigRepository(sqlDB)
 
-	configService := services.NewConfigService(masterMatchingRepo, masterMatchingConfigRepo, systemConfigRepo)
+	// configService := NewConfigService(masterMatchingRepo, masterMatchingConfigRepo, systemConfigRepo)
+	configService := NewConfigService(
+		WithMasterMatching(masterMatchingRepo),
+		WithMasterMatchingConfig(masterMatchingConfigRepo),
+		WithSystemConfig(systemConfigRepo),
+	)
 
-	matchConfig, err := configService.GetJoinedMatchingConfig()
+	matchConfigs, err := configService.GetJoinedMatchingConfig()
 	if err != nil {
-		return nil, err
+		return []models.MatchingResult{}, fmt.Errorf("error while getting configs: %w", err)
+	}
+
+	for _, j := range matchConfigs {
+		fmt.Printf("ID=%s, MatchingID=%s, Source=%s, Field=%s, Weight=%.2f, Type=%t, Algorithm=%s\n",
+			j.Id, j.MatchingId, j.WatchlistSource, j.FieldName, j.FieldWeight, j.Type, j.MatchingAlgorithm)
+	}
+
+	masterNasabahRepo := repository.NewSQLMasterNasabahRepository(sqlDB)
+	masterNasabahService := NewMasterNasabah(masterNasabahRepo)
+
+	masterNasabah, err := masterNasabahService.Load()
+
+	for _, j := range masterNasabah {
+		fmt.Printf("ID: %s, CIF: %s, Nama: %s, Tempat Lahir: %s, Tanggal Lahir: %s, KTP: %s, NPWP: %s, No Paspor: %s, Status: %s, Created Date: %s",
+			j.Id, j.CIFNumber, j.NamaNasabah, j.TanggalLahir, j.TanggalLahir, j.KTP, j.NPWP, j.NoPaspor, j.StatusNasabah, j.CreatedAt)
+		fmt.Println()
+	}
+
+	masterDTTOTRepo := repository.NewSQLMasterTerorisRepository(sqlDB)
+	masterWMDRepo := repository.NewSQLMasterWMDRepository(sqlDB)
+	masterLocalBalcklistRepo := repository.NewSQLMasterLocalBlacklistRepository(sqlDB)
+
+	watchlistService := NewWatchlistService(masterDTTOTRepo, masterWMDRepo, masterLocalBalcklistRepo)
+
+	masterDTTOT, err := watchlistService.LoadDTTOT()
+	masterWMD, err := watchlistService.LoadWMD()
+	masterLocalBlacklist, err := watchlistService.LoadLocalBlacklist()
+
+	for _, j := range masterDTTOT {
+		fmt.Printf("ID: %s, Nama: %s, Alias1: %s, Alias2: %s, Alias3: %s, Alias4: %s, Type: %s, Tempat Lahir: %s, Tanggal Lahir: %s, KTP: %s, NPWP: %s, NoPaspor: %s, Created Date: %s, Status: %s",
+			j.Id, j.Nama, j.Alias1, j.Alias2, j.Alias3, j.Alias4, j.Type, j.TempatLahir, j.TanggalLahir, j.KTP, j.NPWP, j.NoPaspor, j.CreatedAt, j.IsActive)
+		fmt.Println()
+	}
+
+	for _, j := range masterWMD {
+		fmt.Printf("ID: %s, Nama: %s, Alias1: %s, Alias2: %s, Alias3: %s, Alias4: %s, Alias5: %s, Alias6: %s, Alias7: %s, Alias8: %s, Alias9: %s, Alias10: %s, Type: %s, Tempat Lahir: %s, Tanggal Lahir: %s, KTP: %s, NPWP: %s, NoPaspor: %s, Created Date: %s, Status: %s",
+			j.Id, j.Nama, j.Alias1, j.Alias2, j.Alias3, j.Alias4, j.Alias5, j.Alias6, j.Alias7, j.Alias8, j.Alias9, j.Alias10, j.Type, j.TempatLahir, j.TanggalLahir, j.KTP, j.NPWP, j.NoPaspor, j.CreatedAt, j.IsActive)
+		fmt.Println()
+	}
+
+	for _, j := range masterLocalBlacklist {
+		fmt.Printf("ID: %s, Nama: %s, Alias1: %s, Alias2: %s, Alias3: %s, Alias4: %s, Type: %s, Tempat Lahir: %s, Tanggal Lahir: %s, KTP: %s, NPWP: %s, NoPaspor: %s, Created Date: %s, Status: %s",
+			j.Id, j.Nama, j.Alias1, j.Alias2, j.Alias3, j.Alias4, j.Type, j.TempatLahir, j.TanggalLahir, j.KTP, j.NPWP, j.NoPaspor, j.CreatedAt, j.IsActive)
+		fmt.Println()
 	}
 
 	//Load Config

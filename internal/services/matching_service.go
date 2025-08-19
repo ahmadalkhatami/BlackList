@@ -1,200 +1,526 @@
 package services
 
-// import (
-// 	"BlackListWorker/internal/domain/models"
-// 	"strings"
-// 	"time"
+import (
+	"BlackListWorker/config"
+	dbcon "BlackListWorker/internal/db"
+	"BlackListWorker/internal/domain/models"
+	"BlackListWorker/internal/domain/repository"
+	"database/sql"
+	"fmt"
+	"strings"
+	"time"
 
-// 	"github.com/agext/levenshtein"
-// )
+	"github.com/agext/levenshtein"
+)
 
-// func MatchCIFWithTeroris(
-// 	cifs []models.MasterNasabah,
-// 	terorisList []models.MasterWatchlist,
-// 	configs []models.MatchingConfig,
-// ) []models.MatchingResult {
+const threshold = 0.85
 
-// 	var results []models.MatchingResult
-// 	fieldConfig := map[string]models.MatchingConfig{}
+type MatchingServiceInterface interface {
+	MatchCIFWithTeroris() ([]models.MatchingResult, map[int64][]models.MatchingDetail)
+}
 
-// 	// Ambil threshold dari SYSTEM_CONFIG (fallback defaultThreshold kalau tidak ada)
-// 	threshold := GetThresholdFromConfig(db, "MATCHING_THRESHOLD")
+// ===== MATCHING UNTUK MASTER_TERORIS =====
+func MatchCIFWithTeroris() ([]models.MatchingResult, map[int64][]models.MatchingDetail) {
 
-// 	// Ambil config untuk DTTOT saja
-// 	for _, cfg := range configs {
-// 		if strings.ToUpper(cfg.WatchlistSource) == "DTTOT" && cfg.IsActive {
-// 			fieldConfig[strings.ToLower(cfg.FieldName)] = cfg
-// 		}
-// 	}
+	var results []models.MatchingResult
+	detailsMap := make(map[int64][]models.MatchingDetail)
+	fieldConfig := map[string]models.MatchingConfig{}
 
-// 	// Loop setiap CIF dan cocokan ke data teroris
-// 	for _, cif := range cifs {
-// 		for _, teroris := range terorisList {
-// 			if !teroris.IsActive || teroris.Source != "DTTOT" {
-// 				continue
-// 			}
+	// Ambil threshold dari SYSTEM_CONFIG
+	// threshold, err := GetThresholdFromConfig("MATCHING_THRESHOLD")
+	// if err != nil {
+	// 	fmt.Printf("❌ Error getting threshold: %v\n", err)
+	// 	return nil, nil
+	// }
 
-// 			totalWeight := 0.0
-// 			totalScore := 0.0
-// 			var matchedFields []models.MatchingDetail
+	config.LoadEnv()
+	dbConfig := config.Load()
 
-// 			for field, cfg := range fieldConfig {
-// 				custVal := getCIFValueByField(cif, field)
+	connector := dbcon.NewSQLServerConnector(dbConfig.DBServer, dbConfig.DBUser, dbConfig.DBPassword, dbConfig.DBName)
+	sqlDB, err := connector.Connect()
+	if err != nil {
+		return nil, nil
+	}
+	defer sqlDB.Close()
 
-// 				// Ambil semua nilai watchlist (nama utama + alias jika field "nama")
-// 				watchlistValues := getWatchlistValuesByField(teroris, field)
+	masterMatchingRepo := repository.NewSQLMasterMatchingRepository(sqlDB)
+	masterMatchingConfigRepo := repository.NewSQLMasterMatchingConfigRepository(sqlDB)
+	systemConfigRepo := repository.NewSQLSystemConfigRepository(sqlDB)
 
-// 				// Cari skor tertinggi
-// 				maxScore := 0.0
-// 				bestMatchVal := ""
-// 				for _, wlVal := range watchlistValues {
-// 					score := matchScore(custVal, wlVal, cfg.MatchingAlgorithm)
-// 					if score > maxScore {
-// 						maxScore = score
-// 						bestMatchVal = wlVal
-// 					}
-// 				}
+	// configService := NewConfigService(masterMatchingRepo, masterMatchingConfigRepo, systemConfigRepo)
+	configService := NewConfigService(
+		WithMasterMatching(masterMatchingRepo),
+		WithMasterMatchingConfig(masterMatchingConfigRepo),
+		WithSystemConfig(systemConfigRepo),
+	)
 
-// 				// Tambah ke akumulasi total skor
-// 				totalScore += maxScore * cfg.FieldWeight
-// 				totalWeight += cfg.FieldWeight
+	configs, err := configService.GetJoinedMatchingConfig()
+	if err != nil {
+		// return []models.MatchingResult{}, fmt.Errorf("error while getting configs: %w", err)
+		return nil, nil
+	}
 
-// 				matchedFields = append(matchedFields, models.MatchingDetail{
-// 					FieldName:      field,
-// 					CustomerValue:  custVal,
-// 					WatchlistValue: bestMatchVal,
-// 					FieldScore:     maxScore,
-// 					FieldWeight:    cfg.FieldWeight,
-// 					AlgorithmUsed:  cfg.MatchingAlgorithm,
-// 				})
-// 			}
+	// Ambil config untuk MASTER_TERORIS saja
+	for _, cfg := range configs {
+		if strings.ToUpper(cfg.WatchlistSource) == "MASTER_TERORIS" && cfg.IsActive {
+			fieldConfig[strings.ToLower(cfg.FieldName)] = cfg
+		}
+	}
+	fmt.Printf("📌 Field config untuk MASTER_TERORIS: %+v\n", fieldConfig)
 
-// 			if totalWeight == 0 {
-// 				continue
-// 			}
+	for _, cif := range cifs {
+		for _, wl := range terorisList {
+			if !wl.IsActive || wl.Source != "MASTER_TERORIS" {
+				continue
+			}
 
-// 			finalScore := totalScore / totalWeight
+			fmt.Printf("\n🚀 Proses CIF: %s | Watchlist: %s (Source: %s)\n",
+				cif.NamaNasabah, wl.Nama, wl.Source)
 
-// 			// Bandingkan dengan threshold dari config
-// 			if finalScore >= threshold {
-// 				result := models.MatchingResult{
-// 					CIFNumber:       cif.CIFNumber,
-// 					CustomerName:    cif.NamaNasabah,
-// 					WatchlistID:     teroris.ID,
-// 					WatchlistSource: "DTTOT",
-// 					SimilarityScore: finalScore,
-// 					Status:          "SUCCESS",
-// 					ProcessDate:     time.Now(),
-// 					ProcessTime:     time.Now(),
-// 					CreatedAt:       time.Now(),
-// 				}
-// 				results = append(results, result)
-// 				// matchedFields bisa dimasukkan ke MATCHING_DETAILS kalau dibutuhkan
-// 			}
-// 		}
-// 	}
+			totalWeight := 0.0
+			totalScore := 0.0
+			var matchedFields []models.MatchingDetail
 
-// 	return results
-// }
-// func getCIFValueByField(cif models.MasterNasabah, field string) string {
-// 	switch field {
-// 	case "nama", "nama_nasabah":
-// 		return cif.NamaNasabah
-// 	case "tempat_lahir":
-// 		return cif.TempatLahir
-// 	case "tanggal_lahir":
-// 		return cif.TanggalLahir.Format("2006-01-02")
-// 	case "ktp":
-// 		return cif.KTP
-// 	case "npwp":
-// 		return cif.NPWP
-// 	case "no_paspor":
-// 		return cif.NoPaspor
-// 	default:
-// 		return ""
-// 	}
-// }
+			for field, cfg := range fieldConfig {
+				custVal := getCIFValueByField(cif, field)
+				watchlistValues := getWatchlistValuesByField(wl, field)
 
-// func getWatchlistValuesByField(wl models.MasterWatchlist, field string) []string {
-// 	switch field {
-// 	case "nama":
-// 		values := []string{wl.Nama}
-// 		values = append(values, wl.Alias...) // wl.Alias []string
-// 		return values
-// 	case "tempat_lahir":
-// 		return []string{wl.TempatLahir}
-// 	case "tanggal_lahir":
-// 		return []string{wl.TanggalLahir.Format("2006-01-02")}
-// 	case "ktp":
-// 		return []string{wl.KTP}
-// 	case "npwp":
-// 		return []string{wl.NPWP}
-// 	case "no_paspor":
-// 		return []string{wl.NoPaspor}
-// 	default:
-// 		return []string{""}
-// 	}
-// }
+				maxScore := 0.0
+				bestMatchVal := ""
+				for _, wlVal := range watchlistValues {
+					score := matchScore(custVal, wlVal, cfg.MatchingAlgorithm)
+					if score > maxScore {
+						maxScore = score
+						bestMatchVal = wlVal
+					}
+				}
 
-// func matchScore(a, b, algorithm string) float64 {
-// 	a = strings.ToLower(strings.TrimSpace(a))
-// 	b = strings.ToLower(strings.TrimSpace(b))
+				// Debug per field
+				fmt.Printf("   🔍 Field: %s | CIF: '%s' | Watchlist: '%s' | Score: %.2f | Algoritma: %s\n",
+					field, custVal, bestMatchVal, maxScore, cfg.MatchingAlgorithm)
 
-// 	if a == "" || b == "" {
-// 		return 0
-// 	}
+				totalScore += maxScore * cfg.FieldWeight
+				totalWeight += cfg.FieldWeight
 
-// 	switch strings.ToLower(algorithm) {
-// 	case "levenshtein", "fuzzywuzzy", "ratio":
-// 		return levenshtein.Similarity(a, b, nil)
-// 	case "exact":
-// 		if a == b {
-// 			return 1.0
-// 		}
-// 		return 0.0
-// 	default:
-// 		return levenshtein.Similarity(a, b, nil)
-// 	}
-// }
+				matchedFields = append(matchedFields, models.MatchingDetail{
+					FieldName:      field,
+					CustomerValue:  custVal,
+					WatchlistValue: bestMatchVal,
+					FieldScore:     maxScore,
+					FieldWeight:    cfg.FieldWeight,
+					AlgorithmUsed:  cfg.MatchingAlgorithm,
+				})
+			}
 
-// func InsertMatchingResults(db *sql.DB, results []models.MatchingResult) error {
-// 	if len(results) == 0 {
-// 		return nil
-// 	}
+			if totalWeight == 0 {
+				fmt.Println("⚠️ Skip: totalWeight = 0 (tidak ada config aktif)")
+				continue
+			}
 
-// 	query := `
-// 		INSERT INTO MATCHING_RESULTS
-// 		(batch_id, cif_number, customer_name, watchlist_id, watchlist_source, similarity_score, status, process_date, process_time, created_at)
-// 		VALUES (@p1, @p2, @p3, @p4, @p5, @p6, @p7, @p8, @p9, @p10)
-// 	`
+			finalScore := totalScore / totalWeight
+			fmt.Printf("➡️ FinalScore CIF %s vs Watchlist %s = %.2f (Threshold %.2f)\n",
+				cif.NamaNasabah, wl.Nama, finalScore, threshold)
 
-// 	for _, r := range results {
-// 		_, err := db.Exec(query,
-// 			r.BatchID,         // @p1
-// 			r.CIFNumber,       // @p2
-// 			r.CustomerName,    // @p3
-// 			r.WatchlistID,     // @p4
-// 			r.WatchlistSource, // @p5
-// 			r.SimilarityScore, // @p6
-// 			r.Status,          // @p7
-// 			r.ProcessDate,     // @p8
-// 			r.ProcessTime,     // @p9
-// 			r.CreatedAt,       // @p10
-// 		)
-// 		if err != nil {
-// 			log.Println("❌ Gagal insert MATCHING_RESULTS:", err)
-// 			return err
-// 		}
-// 	}
+			if finalScore >= threshold {
+				result := models.MatchingResult{
+					CIFNumber:       cif.CIFNumber,
+					CustomerName:    cif.NamaNasabah,
+					WatchlistID:     wl.ID,
+					WatchlistSource: "MASTER_TERORIS",
+					SimilarityScore: finalScore,
+					Status:          "SUCCESS",
+					ProcessDate:     time.Now(),
+					ProcessTime:     time.Now(),
+					CreatedAt:       time.Now(),
+				}
 
-// 	return nil
-// }
+				resultIndex := int64(len(results)) // index sebelum append
+				results = append(results, result)
+				detailsMap[resultIndex] = matchedFields
 
-// func GetNextBatchID(db *sql.DB) (int64, error) {
-//     var lastBatchID sql.NullInt64
-//     err := db.QueryRow(`SELECT ISNULL(MAX(batch_id), 0) FROM MATCHING_RESULTS`).Scan(&lastBatchID)
-//     if err != nil {
-//         return 0, err
-//     }
-//     return lastBatchID.Int64 + 1, nil
-// }
+				fmt.Printf("✅ MATCH ditemukan! CIF %s cocok dengan Watchlist %s (Score: %.2f)\n",
+					cif.NamaNasabah, wl.Nama, finalScore)
+			} else {
+				fmt.Printf("❌ Tidak match (FinalScore %.2f < Threshold %.2f)\n", finalScore, threshold)
+			}
+		}
+	}
+
+	return results, detailsMap
+}
+
+// ===== MATCHING UNTUK MASTER_WMD =====
+func MatchCIFWithWMD(
+	db *sql.DB,
+	cifs []models.MasterNasabah,
+	wmdList []models.MasterWatchlist,
+	configs []models.MatchingConfig,
+) ([]models.MatchingResult, map[int64][]models.MatchingDetail) {
+
+	var results []models.MatchingResult
+	detailsMap := make(map[int64][]models.MatchingDetail)
+	fieldConfig := map[string]models.MatchingConfig{}
+
+	// threshold := GetThresholdFromConfig("MATCHING_THRESHOLD")
+
+	for _, cfg := range configs {
+		if strings.ToUpper(cfg.WatchlistSource) == "MASTER_WMD" && cfg.IsActive {
+			fieldConfig[strings.ToLower(cfg.FieldName)] = cfg
+		}
+	}
+
+	for _, cif := range cifs {
+		for _, wl := range wmdList {
+			if !wl.IsActive || wl.Source != "MASTER_WMD" {
+				continue
+			}
+
+			totalWeight := 0.0
+			totalScore := 0.0
+			var matchedFields []models.MatchingDetail
+
+			for field, cfg := range fieldConfig {
+				custVal := getCIFValueByField(cif, field)
+				watchlistValues := getWatchlistValuesByField(wl, field)
+
+				maxScore := 0.0
+				bestMatchVal := ""
+				for _, wlVal := range watchlistValues {
+					score := matchScore(custVal, wlVal, cfg.MatchingAlgorithm)
+					if score > maxScore {
+						maxScore = score
+						bestMatchVal = wlVal
+					}
+				}
+
+				totalScore += maxScore * cfg.FieldWeight
+				totalWeight += cfg.FieldWeight
+
+				matchedFields = append(matchedFields, models.MatchingDetail{
+					FieldName:      field,
+					CustomerValue:  custVal,
+					WatchlistValue: bestMatchVal,
+					FieldScore:     maxScore,
+					FieldWeight:    cfg.FieldWeight,
+					AlgorithmUsed:  cfg.MatchingAlgorithm,
+				})
+			}
+
+			if totalWeight == 0 {
+				continue
+			}
+
+			finalScore := totalScore / totalWeight
+
+			if finalScore >= threshold {
+				result := models.MatchingResult{
+					CIFNumber:       cif.CIFNumber,
+					CustomerName:    cif.NamaNasabah,
+					WatchlistID:     wl.ID,
+					WatchlistSource: "MASTER_WMD",
+					SimilarityScore: finalScore,
+					Status:          "SUCCESS",
+					ProcessDate:     time.Now(),
+					ProcessTime:     time.Now(),
+					CreatedAt:       time.Now(),
+				}
+
+				resultIndex := int64(len(results))
+				results = append(results, result)
+				detailsMap[resultIndex] = matchedFields
+			}
+		}
+	}
+	return results, detailsMap
+}
+
+// ===== MATCHING UNTUK MASTER_LOCAL_BLACKLIST =====
+func MatchCIFWithLocalBlacklist(
+	db *sql.DB,
+	cifs []models.MasterNasabah,
+	localList []models.MasterWatchlist,
+	configs []models.MatchingConfig,
+) ([]models.MatchingResult, map[int64][]models.MatchingDetail) {
+
+	var results []models.MatchingResult
+	detailsMap := make(map[int64][]models.MatchingDetail)
+	fieldConfig := map[string]models.MatchingConfig{}
+
+	// Ambil threshold
+	// threshold := GetThresholdFromConfig("MATCHING_THRESHOLD")
+
+	// Ambil config utk MASTER_LOCAL_BLACKLIST
+	for _, cfg := range configs {
+		if strings.ToUpper(cfg.WatchlistSource) == "MASTER_LOCAL_BLACKLIST" && cfg.IsActive {
+			fieldConfig[strings.ToLower(cfg.FieldName)] = cfg
+		}
+	}
+
+	for _, cif := range cifs {
+		for _, wl := range localList {
+			if !wl.IsActive || wl.Source != "MASTER_LOCAL_BLACKLIST" {
+				continue
+			}
+
+			totalWeight := 0.0
+			totalScore := 0.0
+			var matchedFields []models.MatchingDetail
+
+			for field, cfg := range fieldConfig {
+				custVal := getCIFValueByField(cif, field)
+				watchlistValues := getWatchlistValuesByField(wl, field)
+
+				maxScore := 0.0
+				bestMatchVal := ""
+				for _, wlVal := range watchlistValues {
+					score := matchScore(custVal, wlVal, cfg.MatchingAlgorithm)
+					if score > maxScore {
+						maxScore = score
+						bestMatchVal = wlVal
+					}
+				}
+
+				totalScore += maxScore * cfg.FieldWeight
+				totalWeight += cfg.FieldWeight
+
+				matchedFields = append(matchedFields, models.MatchingDetail{
+					FieldName:      field,
+					CustomerValue:  custVal,
+					WatchlistValue: bestMatchVal,
+					FieldScore:     maxScore,
+					FieldWeight:    cfg.FieldWeight,
+					AlgorithmUsed:  cfg.MatchingAlgorithm,
+				})
+			}
+
+			if totalWeight == 0 {
+				continue
+			}
+
+			finalScore := totalScore / totalWeight
+
+			if finalScore >= threshold {
+				result := models.MatchingResult{
+					CIFNumber:       cif.CIFNumber,
+					CustomerName:    cif.NamaNasabah,
+					WatchlistID:     wl.ID,
+					WatchlistSource: "MASTER_LOCAL_BLACKLIST",
+					SimilarityScore: finalScore,
+					Status:          "SUCCESS",
+					ProcessDate:     time.Now(),
+					ProcessTime:     time.Now(),
+					CreatedAt:       time.Now(),
+				}
+
+				resultIndex := int64(len(results))
+				results = append(results, result)
+				detailsMap[resultIndex] = matchedFields
+			}
+		}
+	}
+	return results, detailsMap
+}
+
+// ===== MATCHING UNTUK TERORIS + WMD + LOCAL_BLACKLIST SEKALIGUS =====
+func MatchCIFAll(
+	db *sql.DB,
+	cifs []models.MasterNasabah,
+	watchlist []models.MasterWatchlist,
+	configs []models.MatchingConfig,
+) ([]models.MatchingResult, map[int64][]models.MatchingDetail) {
+
+	var allResults []models.MatchingResult
+	allDetails := make(map[int64][]models.MatchingDetail)
+
+	// Pisahkan data watchlist berdasarkan source
+	var terorisList []models.MasterWatchlist
+	var wmdList []models.MasterWatchlist
+	var localList []models.MasterWatchlist
+
+	for _, wl := range watchlist {
+		if !wl.IsActive {
+			continue
+		}
+		switch strings.ToUpper(wl.Source) {
+		case "MASTER_TERORIS":
+			terorisList = append(terorisList, wl)
+		case "MASTER_WMD":
+			wmdList = append(wmdList, wl)
+		case "MASTER_LOCAL_BLACKLIST":
+			localList = append(localList, wl)
+		}
+	}
+
+	// Matching TERORIS
+	resultsTeroris, detailsTeroris := MatchCIFWithTeroris(db, cifs, terorisList, configs)
+	for i, r := range resultsTeroris {
+		idx := int64(len(allResults))
+		allResults = append(allResults, r)
+		allDetails[idx] = detailsTeroris[int64(i)]
+	}
+
+	// Matching WMD
+	resultsWMD, detailsWMD := MatchCIFWithWMD(db, cifs, wmdList, configs)
+	for i, r := range resultsWMD {
+		idx := int64(len(allResults))
+		allResults = append(allResults, r)
+		allDetails[idx] = detailsWMD[int64(i)]
+	}
+
+	// Matching LOCAL BLACKLIST
+	resultsLocal, detailsLocal := MatchCIFWithLocalBlacklist(db, cifs, localList, configs)
+	for i, r := range resultsLocal {
+		idx := int64(len(allResults))
+		allResults = append(allResults, r)
+		allDetails[idx] = detailsLocal[int64(i)]
+	}
+
+	return allResults, allDetails
+}
+
+// ===== UTIL =====
+func getCIFValueByField(cif models.MasterNasabah, field string) string {
+	switch field {
+	case "nama", "namanasabah":
+		return cif.NamaNasabah
+	case "tempatlahir":
+		return cif.TempatLahir
+	case "tanggallahir":
+		if !cif.TanggalLahir.IsZero() {
+			return cif.TanggalLahir.Format("2006-01-02")
+		}
+		return ""
+	case "ktp":
+		return cif.KTP
+	case "npwp":
+		return cif.NPWP
+	case "nopaspor":
+		return cif.NoPaspor
+	default:
+		return ""
+	}
+}
+
+func getWatchlistValuesByField(wl models.MasterWatchlist, field string) []string {
+	switch field {
+	case "nama":
+		values := []string{}
+		if strings.TrimSpace(wl.Nama) != "" {
+			values = append(values, wl.Nama)
+		}
+		for _, alias := range wl.Aliases { // alias sudah slice di struct
+			if strings.TrimSpace(alias) != "" {
+				values = append(values, alias)
+			}
+		}
+		return values
+	case "tempatlahir":
+		if wl.TempatLahir != "" {
+			return []string{wl.TempatLahir}
+		}
+	case "tanggallahir":
+		if !wl.TanggalLahir.IsZero() {
+			return []string{wl.TanggalLahir.Format("2006-01-02")}
+		}
+	case "ktp":
+		if wl.KTP != "" {
+			return []string{wl.KTP}
+		}
+	case "npwp":
+		if wl.NPWP != "" {
+			return []string{wl.NPWP}
+		}
+	case "nopaspor":
+		if wl.NoPaspor != "" {
+			return []string{wl.NoPaspor}
+		}
+	}
+	return []string{}
+}
+
+func matchScore(a, b, algorithm string) float64 {
+	a = strings.ToLower(strings.TrimSpace(a))
+	b = strings.ToLower(strings.TrimSpace(b))
+
+	if a == "" || b == "" {
+		return 0
+	}
+
+	switch strings.ToLower(algorithm) {
+	case "levenshtein", "fuzzywuzzy", "ratio":
+		return levenshtein.Similarity(a, b, nil)
+	case "exact":
+		if a == b {
+			return 1.0
+		}
+		return 0.0
+	default:
+		return levenshtein.Similarity(a, b, nil)
+	}
+}
+
+// ===== INSERT RESULT & DETAIL =====
+func InsertMatchingResults(db *sql.DB, results []models.MatchingResult, detailsMap map[int64][]models.MatchingDetail) error {
+	if len(results) == 0 {
+		return nil
+	}
+
+	queryResult := `
+        INSERT INTO MATCHING_RESULTS 
+        (BatchId, CifNumber, CustomerName, WatchlistId, WatchlistSource, SimilarityScore, Status, ProcessDate, ProcessTime, CreatedAt)
+        OUTPUT INSERTED.Id
+        VALUES (@p1, @p2, @p3, @p4, @p5, @p6, @p7, @p8, @p9, @p10)
+    `
+	queryDetail := `
+        INSERT INTO MATCHING_DETAILS 
+        (MatchingResultId, FieldName, CustomerValue, WatchlistValue, FieldScore, FieldWeight, AlgorithmUsed)
+        VALUES (@p1, @p2, @p3, @p4, @p5, @p6, @p7)
+    `
+
+	for idx, r := range results {
+		var insertedID int64
+		err := db.QueryRow(queryResult,
+			r.BatchID,
+			r.CIFNumber,
+			r.CustomerName,
+			r.WatchlistID,
+			r.WatchlistSource,
+			r.SimilarityScore,
+			r.Status,
+			r.ProcessDate,
+			r.ProcessTime,
+			r.CreatedAt,
+		).Scan(&insertedID)
+		if err != nil {
+			return fmt.Errorf("insert MATCHING_RESULTS gagal: %w", err)
+		}
+
+		// pake index, bukan WatchlistID
+		if detailList, ok := detailsMap[int64(idx)]; ok {
+			for _, d := range detailList {
+				_, err := db.Exec(queryDetail,
+					insertedID,
+					d.FieldName,
+					d.CustomerValue,
+					d.WatchlistValue,
+					d.FieldScore,
+					d.FieldWeight,
+					d.AlgorithmUsed,
+				)
+				if err != nil {
+					return fmt.Errorf("insert MATCHING_DETAILS gagal: %w", err)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func GetNextBatchID(db *sql.DB) (int64, error) {
+	var lastBatchID sql.NullInt64
+	err := db.QueryRow(`SELECT ISNULL(MAX(BatchId), 0) FROM MATCHING_RESULTS`).Scan(&lastBatchID)
+	if err != nil {
+		return 0, err
+	}
+	return lastBatchID.Int64 + 1, nil
+}

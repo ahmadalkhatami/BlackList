@@ -5,12 +5,10 @@ import (
 	"unicode"
 )
 
-/* Normalize : trim, lower, remove duplicate spaces, remove non-letter/number */
 func Normalize(s string) string {
 	s = strings.TrimSpace(s)
 	s = strings.ToLower(s)
 
-	/* remove control characters, keep letters/numbers and spaces */
 	var b []rune
 	lastSpace := false
 	for _, r := range s {
