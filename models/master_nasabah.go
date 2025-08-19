@@ -12,6 +12,6 @@ type MASTER_NASABAH struct {
 	NPWP          string
 	NoPaspor      string
 	StatusNasabah string
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	CreatedAt     *time.Time
+	UpdatedAt     *time.Time
 }

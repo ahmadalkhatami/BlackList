@@ -9,7 +9,7 @@ type MatchingConfig struct {
 	FieldWeight       float64
 	MatchingAlgorithm string // e.g., "jaro_winkler"
 	IsActive          bool
-	CreatedBy         int64
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
+	CreatedBy         *int64
+	CreatedAt         *time.Time
+	UpdatedAt         *time.Time
 }

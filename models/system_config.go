@@ -7,8 +7,8 @@ type SystemConfig struct {
 	ConfigKey   string
 	ConfigValue string
 	ConfigType  string // DECIMAL, INTEGER, STRING
-	Description string
-	CreatedBy   int64
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	Description *string
+	CreatedBy   *int64
+	CreatedAt   *time.Time
+	UpdatedAt   *time.Time
 }

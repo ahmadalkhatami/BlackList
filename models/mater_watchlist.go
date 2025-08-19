@@ -12,7 +12,7 @@ type MasterWatchlist struct {
 	NPWP           string
 	NoPaspor       string
 	Source         string // "DTTOT", "WMD", or "LOCAL_BLACKLIST"
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	CreatedAt      *time.Time
+	UpdatedAt      *time.Time
 	IsActive       bool
 }
