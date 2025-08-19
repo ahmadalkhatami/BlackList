@@ -7,15 +7,9 @@ import (
 
 // LoadMatchingConfig mengambil data konfigurasi pencocokan dari tabel MATCHING_CONFIG
 func LoadMatchingConfig(db *sql.DB) ([]models.MatchingConfig, error) {
-	// rows, err := db.Query(`
-	// 	SELECT Id, WatchlistSource, FieldName, FieldWeight, MatchingAlgorithm, IsActive, CreatedBy, CreatedAt, UpdatedAt
-	// 	FROM MASTER_MATCHING_CONFIG
-	// 	WHERE is_active = 1
-	// `)
-
 	rows, err := db.Query(`
 		;WITH BASECONFIG AS (
-			SELECT MM.Id, WatchlistSource, FieldName, FieldWeight, MatchingAlgorithm, mmc.IsActive, CreatedBy, CreatedAt, UpdatedAt 
+			SELECT MM.Id, WatchlistSource, FieldName, FieldWeight, MatchingAlgorithm, mmc.IsActive, CreatedBy, CreatedAt 
 			FROM MASTER_MATCHING mm WITH(NOLOCK)
 			INNER JOIN MASTER_MATCHING_CONFIG mmc WITH(NOLOCK) ON mm.Id = mmc.MatchingId AND mmc.IsActive = 1 AND mm.IsActive = 1
 		)
@@ -38,7 +32,6 @@ func LoadMatchingConfig(db *sql.DB) ([]models.MatchingConfig, error) {
 			&cfg.IsActive,
 			&cfg.CreatedBy,
 			&cfg.CreatedAt,
-			&cfg.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err
