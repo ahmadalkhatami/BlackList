@@ -20,7 +20,7 @@ func NewSQLMasterNasabahRepository(db *sql.DB) MasterNasabahRepository {
 func (r sqlMasterNasabahRepository) LoadMasterNasabah() ([]models.MasterNasabah, error) {
 	rows, err := r.DB.Query("SELECT [Id], [CIFNumber], [NamaNasabah], [TempatLahir], [TanggalLahir], [KTP], [NPWP], [NoPaspor], [StatusNasabah], [CreatedAt] FROM [dbo].[MASTER_NASABAH] WHERE StatusNasabah = 'ACTIVE';")
 	if err != nil {
-		return nil, err
+		return []models.MasterNasabah{}, err
 	}
 
 	defer rows.Close()

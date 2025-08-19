@@ -18,9 +18,9 @@ func NewSQLMasterTerorisRepository(db *sql.DB) MasterTerorisRepository {
 }
 
 func (r sqlMasterTerorisRepository) LoadMasterTeroris() ([]models.MasterTeroris, error) {
-	rows, err := r.DB.Query("SELECT [Id], [Nama], [Alias1], [Alias2], [Alias3], [Alias4], [Type], [TempatLahir], [TanggalLahir], [KTP], [NPWP], [NoPaspor], [CreatedAt], [UpdatedAt], [IsActive] FROM [dbo].[MASTER_TERORIS] WHERE [IsActive] = 1;")
+	rows, err := r.DB.Query("SELECT [Id], [Nama], [Alias1], [Alias2], [Alias3], [Alias4], [Type], [TempatLahir], [TanggalLahir], [KTP], [NPWP], [NoPaspor], [CreatedAt], [IsActive] FROM [dbo].[MASTER_TERORIS] WHERE [IsActive] = 1;")
 	if err != nil {
-		return nil, err
+		return []models.MasterTeroris{}, err
 	}
 
 	defer rows.Close()

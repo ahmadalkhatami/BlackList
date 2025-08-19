@@ -18,9 +18,9 @@ func NewSQLMasterLocalBlacklistRepository(db *sql.DB) MasterLocalBlacklistReposi
 }
 
 func (r sqlMasterLocalBlacklistRepository) LoadMasterLocalBlacklist() ([]models.MasterLocalBlacklist, error) {
-	rows, err := r.DB.Query("SELECT [Id] ,[Nama] ,[Alias1] ,[Alias2] ,[Alias3] ,[Alias4] ,[Type] ,[TempatLahir] ,[TanggalLahir] ,[KTP] ,[NPWP] ,[NoPaspor] ,[CreatedAt] ,[UpdatedAt] ,[IsActive] FROM [dbo].[MASTER_LOCAL_BLACKLIST] WHERE [IsActive] = 1;")
+	rows, err := r.DB.Query("SELECT [Id] ,[Nama] ,[Alias1] ,[Alias2] ,[Alias3] ,[Alias4] ,[Type] ,[TempatLahir] ,[TanggalLahir] ,[KTP] ,[NPWP] ,[NoPaspor] ,[CreatedAt] ,[IsActive] FROM [dbo].[MASTER_LOCAL_BLACKLIST] WHERE [IsActive] = 1;")
 	if err != nil {
-		return nil, err
+		return []models.MasterLocalBlacklist{}, err
 	}
 
 	defer rows.Close()

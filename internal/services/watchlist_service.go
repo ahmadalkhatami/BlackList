@@ -3,12 +3,15 @@ package services
 import (
 	"BlackListWorker/internal/domain/models"
 	"BlackListWorker/internal/domain/repository"
+	"database/sql"
+	"log"
 )
 
 type WatchlistServiceInterface interface {
 	LoadDTTOT() ([]models.MasterTeroris, error)
 	LoadWMD() ([]models.MasterWMD, error)
 	LoadLocalBlacklist() ([]models.MasterLocalBlacklist, error)
+	CombineAliases(a1, a2, a3, a4 sql.NullString) ([]string, error)
 }
 
 type WatchlistServiceImpl struct {
@@ -33,7 +36,8 @@ func (w *WatchlistServiceImpl) LoadDTTOT() ([]models.MasterTeroris, error) {
 
 	records, err := w.MasterDTTOT.LoadMasterTeroris()
 	if err != nil {
-		return []models.MasterTeroris{}, err
+		// return []models.MasterTeroris{}, err
+		log.Fatalf("Failed to load Master Teroris: %v", err)
 	}
 
 	return records, nil
@@ -43,7 +47,8 @@ func (w *WatchlistServiceImpl) LoadWMD() ([]models.MasterWMD, error) {
 
 	records, err := w.MasterWMD.LoadMasterWMD()
 	if err != nil {
-		return []models.MasterWMD{}, err
+		// return []models.MasterWMD{}, err
+		log.Fatalf("Failed to load Master WMD: %v", err)
 	}
 
 	return records, nil
@@ -52,61 +57,19 @@ func (w *WatchlistServiceImpl) LoadWMD() ([]models.MasterWMD, error) {
 func (w *WatchlistServiceImpl) LoadLocalBlacklist() ([]models.MasterLocalBlacklist, error) {
 	records, err := w.MasterLocalblacklist.LoadMasterLocalBlacklist()
 	if err != nil {
-		return []models.MasterLocalBlacklist{}, err
+		// return []models.MasterLocalBlacklist{}, err
+		log.Fatalf("Failed to load Master Local Blacklist: %v", err)
 	}
 
 	return records, nil
 }
 
-// import (
-// 	"BlackListWorker/internal/domain/momodels
-// 	"database/sql"
-// )
-
-// // LoadMasterTeroris mengambil data dari tabel MASTER_TERORIS
-// func LoadMasterTeroris(db *sql.DB) ([]models.MasterWatchlist, error) {
-// 	rows, err := db.Query(`
-// 		SELECT id, nama, alias1, alias2, alias3, alias4, tempat_lahir, tanggal_lahir, ktp, npwp, no_paspor, created_at, updated_at, is_active
-// 		FROM MASTER_TERORIS
-// 		WHERE is_active = 1
-// 	`)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	defer rows.Close()
-
-// 	var result []models.MasterWatchlist
-// 	for rows.Next() {
-// 		var m models.MasterWatchlist
-// 		var alias1, alias2, alias3, alias4 sql.NullString
-
-// 		err := rows.Scan(
-// 			&m.ID, &m.Nama,
-// 			&alias1, &alias2, &alias3, &alias4,
-// 			&m.TempatLahir, &m.TanggalLahir, &m.KTP, &m.NPWP, &m.NoPaspor,
-// 			&m.CreatedAt, &m.UpdatedAt, &m.IsActive,
-// 		)
-// 		if err != nil {
-// 			return nil, err
-// 		}
-
-// 		// Gabungkan alias
-// 		m.Alias = combineAliases(alias1, alias2, alias3, alias4)
-// 		m.Source = "DTTOT" // ini penting untuk pemrosesan di matching
-
-// 		result = append(result, m)
-// 	}
-
-// 	return result, nil
-// }
-
-// // Fungsi bantu untuk gabungkan alias
-// func combineAliases(a1, a2, a3, a4 sql.NullString) []string {
-// 	aliases := []string{}
-// 	for _, a := range []sql.NullString{a1, a2, a3, a4} {
-// 		if a.Valid && a.String != "" {
-// 			aliases = append(aliases, a.String)
-// 		}
-// 	}
-// 	return aliases
-// }
+func (w *WatchlistServiceImpl) CombineAliases(a1, a2, a3, a4 sql.NullString) ([]string, error) {
+	aliases := []string{}
+	for _, a := range []sql.NullString{a1, a2, a3, a4} {
+		if a.Valid && a.String != "" {
+			aliases = append(aliases, a.String)
+		}
+	}
+	return aliases, nil
+}

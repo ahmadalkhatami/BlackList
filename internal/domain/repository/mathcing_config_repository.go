@@ -20,7 +20,7 @@ func NewSQLMasterMatchingConfigRepository(db *sql.DB) MasterMatchingConfigReposi
 func (r sqlMasterMatchingConfigRepository) LoadMasterMatchingConfig() ([]models.MasterMatchingConfig, error) {
 	rows, err := r.DB.Query("SELECT [Id], [MatchingId], [FieldName], [FieldWeight], [MatchingAlgorithm], [IsActive] FROM [dbo].[MASTER_MATCHING_CONFIG] WHERE [IsActive] = 1;")
 	if err != nil {
-		return nil, err
+		return []models.MasterMatchingConfig{}, err
 	}
 
 	defer rows.Close()
