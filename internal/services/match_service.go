@@ -1,9 +1,13 @@
 package services
 
 import (
+	"BlackListWorker/config"
+	"BlackListWorker/internal/db"
 	"BlackListWorker/internal/domain/models"
 	"BlackListWorker/internal/domain/repository"
+	"BlackListWorker/internal/services"
 	"errors"
+	"fmt"
 )
 
 var ErrUnknownAlgorithm = errors.New("Unknown Algorithm")
@@ -44,6 +48,27 @@ func NewMatchService(
 }
 
 func (s *MatchServiceImpl) RunMatch(configID int) ([]models.MatchingResult, error) {
+
+	config.LoadEnv()
+	dbConfig := config.Load()
+
+	connector := db.NewSQLServerConnector(dbConfig.DBServer, dbConfig.DBUser, dbConfig.DBPassword, dbConfig.DBName)
+	sqlDB, err := connector.Connect()
+	if err != nil {
+		return []models.MatchingResult{}, fmt.Errorf("Failed connect to database : %w", err)
+	}
+	defer sqlDB.Close()
+
+	masterMatchingRepo := repository.NewSQLMasterMatchingRepository(sqlDB)
+	masterMatchingConfigRepo := repository.NewSQLMasterMatchingConfigRepository(sqlDB)
+	systemConfigRepo := repository.NewSQLSystemConfigRepository(sqlDB)
+
+	configService := services.NewConfigService(masterMatchingRepo, masterMatchingConfigRepo, systemConfigRepo)
+
+	matchConfig, err := configService.GetJoinedMatchingConfig()
+	if err != nil {
+		return nil, err
+	}
 
 	//Load Config
 	// cfg, err := s.ConfigRepo.LoadMasterMatchingConfig()
