@@ -1,8 +1,10 @@
 package db
 
 import (
+	"BlackListWorker/config"
 	"database/sql"
 	"fmt"
+	"sync"
 
 	_ "github.com/denisenkom/go-mssqldb"
 )
@@ -23,6 +25,11 @@ type sqlServerConnector struct {
 	password string
 	database string
 }
+
+var (
+	connectorInstance *sqlServerConnector
+	once              sync.Once
+)
 
 func NewSQLServerConnector(server, user, password, database string) *sqlServerConnector {
 	return &sqlServerConnector{
@@ -48,6 +55,14 @@ func (c *sqlServerConnector) Connect() (*sql.DB, error) {
 	}
 
 	return db, nil
+}
+
+func GetConnector() *sqlServerConnector {
+	once.Do(func() {
+		cfg := config.Load()
+		connectorInstance = NewSQLServerConnector(cfg.DBServer, cfg.DBUser, cfg.DBPassword, cfg.DBName)
+	})
+	return connectorInstance
 }
 
 /*

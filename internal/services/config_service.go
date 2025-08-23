@@ -20,27 +20,27 @@ type SystemConfigImpl struct {
 	SystemConfig         repository.SystemConfigRepository
 }
 
-type Option func(*SystemConfigImpl)
+type ConfigOption func(*SystemConfigImpl)
 
-func WithMasterMatching(r repository.MasterMatchingRepository) Option {
+func WithMasterMatching(r repository.MasterMatchingRepository) ConfigOption {
 	return func(s *SystemConfigImpl) {
 		s.MasterMatching = r
 	}
 }
 
-func WithMasterMatchingConfig(r repository.MasterMatchingConfigRepository) Option {
+func WithMasterMatchingConfig(r repository.MasterMatchingConfigRepository) ConfigOption {
 	return func(s *SystemConfigImpl) {
 		s.MasterMatchingConfig = r
 	}
 }
 
-func WithSystemConfig(r repository.SystemConfigRepository) Option {
+func WithSystemConfig(r repository.SystemConfigRepository) ConfigOption {
 	return func(s *SystemConfigImpl) {
 		s.SystemConfig = r
 	}
 }
 
-func NewConfigService(opts ...Option) SystemConfigInterface {
+func NewConfigService(opts ...ConfigOption) SystemConfigInterface {
 	svc := &SystemConfigImpl{}
 	for _, opt := range opts {
 		opt(svc)

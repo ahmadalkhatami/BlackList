@@ -8,7 +8,7 @@ import (
 )
 
 type MatchingResultRepository interface {
-	LoadMatchingResult(query string) ([]models.MatchingResult, error)
+	LoadMatchingResult(query *string) ([]models.MatchingResult, error)
 	SaveMatchingResult(results []models.MatchingResult) error
 	SaveMatchingResultBatch(batchID string, results []models.MatchingResult) error
 }
@@ -21,8 +21,15 @@ func NewSQLMatchingResultRepository(db *sql.DB) MatchingResultRepository {
 	return &sqlMatchingResultRepository{DB: db}
 }
 
-func (r sqlMatchingResultRepository) LoadMatchingResult(query string) ([]models.MatchingResult, error) {
-	rows, err := r.DB.Query(query)
+func (r sqlMatchingResultRepository) LoadMatchingResult(query *string) ([]models.MatchingResult, error) {
+
+	defaultQuery := "SELECT [Id], [MatchingResultId], [FieldName], [CustomerValue], [WatchlistValue], [FieldScore], [FieldWeight], [AlgorithmUsed] FROM [dbo].[MATCHING_DETAILS]"
+
+	if query == nil || *query == "" {
+		query = &defaultQuery
+	}
+
+	rows, err := r.DB.Query(*query)
 	if err != nil {
 		return []models.MatchingResult{}, err
 	}

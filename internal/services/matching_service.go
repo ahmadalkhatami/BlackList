@@ -1,7 +1,6 @@
 package services
 
 import (
-	"BlackListWorker/config"
 	dbcon "BlackListWorker/internal/db"
 	"BlackListWorker/internal/domain/models"
 	"BlackListWorker/internal/domain/repository"
@@ -16,30 +15,17 @@ import (
 const threshold = 0.85
 
 type MatchingServiceInterface interface {
-	MatchCIFWithTeroris() ([]models.MatchingResult, map[int64][]models.MatchingDetail)
+	MatchCIFWithTeroris() ([]models.MatchingResult, map[int64][]models.MatchingDetail, error)
 }
 
 // ===== MATCHING UNTUK MASTER_TERORIS =====
-func MatchCIFWithTeroris() ([]models.MatchingResult, map[int64][]models.MatchingDetail) {
+func MatchCIFWithTeroris() ([]models.MatchingResult, map[int64][]models.MatchingDetail, error) {
 
-	var results []models.MatchingResult
-	detailsMap := make(map[int64][]models.MatchingDetail)
-	fieldConfig := map[string]models.MatchingConfig{}
-
-	// Ambil threshold dari SYSTEM_CONFIG
-	// threshold, err := GetThresholdFromConfig("MATCHING_THRESHOLD")
-	// if err != nil {
-	// 	fmt.Printf("❌ Error getting threshold: %v\n", err)
-	// 	return nil, nil
-	// }
-
-	config.LoadEnv()
-	dbConfig := config.Load()
-
-	connector := dbcon.NewSQLServerConnector(dbConfig.DBServer, dbConfig.DBUser, dbConfig.DBPassword, dbConfig.DBName)
+	connector := dbcon.GetConnector()
 	sqlDB, err := connector.Connect()
 	if err != nil {
-		return nil, nil
+		// return nil, nil
+		return []models.MatchingResult{}, map[int64][]models.MatchingDetail{}, err
 	}
 	defer sqlDB.Close()
 
@@ -54,10 +40,39 @@ func MatchCIFWithTeroris() ([]models.MatchingResult, map[int64][]models.Matching
 		WithSystemConfig(systemConfigRepo),
 	)
 
+	masterNasabahRepo := repository.NewSQLMasterNasabahRepository(sqlDB)
+	masterNasabahService := NewMasterNasabah(masterNasabahRepo)
+
+	masterDTTOTRepo := repository.NewSQLMasterTerorisRepository(sqlDB)
+	masterWMDRepo := repository.NewSQLMasterWMDRepository(sqlDB)
+	masterLocalBalcklistRepo := repository.NewSQLMasterLocalBlacklistRepository(sqlDB)
+
+	watchlistService := NewWatchlistService(
+		// masterDTTOTRepo, masterWMDRepo, masterLocalBalcklistRepo
+		WithMasterTeroris(masterDTTOTRepo),
+		WithMasterWMD(masterWMDRepo),
+		WithMasterLocalBlacklist(masterLocalBalcklistRepo),
+	)
+
+	// masterDTTOT, err := watchlistService.LoadDTTOT()
+	// masterWMD, err := watchlistService.LoadWMD()
+	// masterLocalBlacklist, err := watchlistService.LoadLocalBlacklist()
+
+	var results []models.MatchingResult
+	detailsMap := make(map[int64][]models.MatchingDetail)
+	// fieldConfig := map[string]models.MatchingConfig{}
+	fieldConfig := make(map[string]models.JoinedMatchingConfig)
+
+	// Ambil threshold dari SYSTEM_CONFIG
+	threshold, err := configService.GetThresholdFromConfig("MATCHING_THRESHOLD")
+	if err != nil {
+		fmt.Printf("❌ Error getting threshold: %v\n", err)
+		return []models.MatchingResult{}, map[int64][]models.MatchingDetail{}, err
+	}
+
 	configs, err := configService.GetJoinedMatchingConfig()
 	if err != nil {
-		// return []models.MatchingResult{}, fmt.Errorf("error while getting configs: %w", err)
-		return nil, nil
+		return []models.MatchingResult{}, map[int64][]models.MatchingDetail{}, err
 	}
 
 	// Ambil config untuk MASTER_TERORIS saja
@@ -68,14 +83,22 @@ func MatchCIFWithTeroris() ([]models.MatchingResult, map[int64][]models.Matching
 	}
 	fmt.Printf("📌 Field config untuk MASTER_TERORIS: %+v\n", fieldConfig)
 
+	cifs, err := masterNasabahService.Load()
+	if err != nil {
+		return []models.MatchingResult{}, map[int64][]models.MatchingDetail{}, err
+	}
+	terorisList, err := watchlistService.LoadDTTOT()
+	if err != nil {
+		return []models.MatchingResult{}, map[int64][]models.MatchingDetail{}, err
+	}
 	for _, cif := range cifs {
 		for _, wl := range terorisList {
-			if !wl.IsActive || wl.Source != "MASTER_TERORIS" {
+			if !wl.IsActive {
 				continue
 			}
 
-			fmt.Printf("\n🚀 Proses CIF: %s | Watchlist: %s (Source: %s)\n",
-				cif.NamaNasabah, wl.Nama, wl.Source)
+			fmt.Printf("\n🚀 Proses CIF: %s | DTTOT: %s",
+				cif.NamaNasabah, wl.Nama)
 
 			totalWeight := 0.0
 			totalScore := 0.0
@@ -146,7 +169,7 @@ func MatchCIFWithTeroris() ([]models.MatchingResult, map[int64][]models.Matching
 		}
 	}
 
-	return results, detailsMap
+	return results, detailsMap, nil
 }
 
 // ===== MATCHING UNTUK MASTER_WMD =====
@@ -327,7 +350,7 @@ func MatchCIFAll(
 	cifs []models.MasterNasabah,
 	watchlist []models.MasterWatchlist,
 	configs []models.MatchingConfig,
-) ([]models.MatchingResult, map[int64][]models.MatchingDetail) {
+) ([]models.MatchingResult, map[int64][]models.MatchingDetail, error) {
 
 	var allResults []models.MatchingResult
 	allDetails := make(map[int64][]models.MatchingDetail)
@@ -375,7 +398,7 @@ func MatchCIFAll(
 		allDetails[idx] = detailsLocal[int64(i)]
 	}
 
-	return allResults, allDetails
+	return allResults, allDetails, nil
 }
 
 // ===== UTIL =====

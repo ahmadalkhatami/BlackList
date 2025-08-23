@@ -21,16 +21,44 @@ type WatchlistServiceImpl struct {
 	MasterLocalblacklist repository.MasterLocalBlacklistRepository
 }
 
-func NewWatchlistService(
-	masterDTTOT repository.MasterTerorisRepository,
-	masterWMD repository.MasterWMDRepository,
-	masterLocalBlacklist repository.MasterLocalBlacklistRepository,
-) WatchlistServiceInterface {
-	return &WatchlistServiceImpl{
-		MasterDTTOT:          masterDTTOT,
-		MasterWMD:            masterWMD,
-		MasterLocalblacklist: masterLocalBlacklist,
+// func NewWatchlistService(
+// 	masterDTTOT repository.MasterTerorisRepository,
+// 	masterWMD repository.MasterWMDRepository,
+// 	masterLocalBlacklist repository.MasterLocalBlacklistRepository,
+// ) WatchlistServiceInterface {
+// 	return &WatchlistServiceImpl{
+// 		MasterDTTOT:          masterDTTOT,
+// 		MasterWMD:            masterWMD,
+// 		MasterLocalblacklist: masterLocalBlacklist,
+// 	}
+// }
+
+type WatchlistOption func(*WatchlistServiceImpl)
+
+func WithMasterTeroris(r repository.MasterTerorisRepository) WatchlistOption {
+	return func(w *WatchlistServiceImpl) {
+		w.MasterDTTOT = r
 	}
+}
+
+func WithMasterWMD(r repository.MasterWMDRepository) WatchlistOption {
+	return func(w *WatchlistServiceImpl) {
+		w.MasterWMD = r
+	}
+}
+
+func WithMasterLocalBlacklist(r repository.MasterLocalBlacklistRepository) WatchlistOption {
+	return func(w *WatchlistServiceImpl) {
+		w.MasterLocalblacklist = r
+	}
+}
+
+func NewWatchlistService(opts ...WatchlistOption) WatchlistServiceInterface {
+	svc := &WatchlistServiceImpl{}
+	for _, opt := range opts {
+		opt(svc)
+	}
+	return svc
 }
 
 func (w *WatchlistServiceImpl) LoadDTTOT() ([]models.MasterTeroris, error) {
