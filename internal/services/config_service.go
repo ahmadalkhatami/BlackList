@@ -2,7 +2,8 @@ package services
 
 import (
 	"BlackListWorker/internal/domain/models"
-	"BlackListWorker/internal/domain/repository"
+	"BlackListWorker/internal/domain/repositories"
+	"BlackListWorker/internal/utils"
 	"strconv"
 )
 
@@ -15,26 +16,26 @@ type SystemConfigInterface interface {
 }
 
 type SystemConfigImpl struct {
-	MasterMatching       repository.MasterMatchingRepository
-	MasterMatchingConfig repository.MasterMatchingConfigRepository
-	SystemConfig         repository.SystemConfigRepository
+	MasterMatching       repositories.MasterMatchingRepository
+	MasterMatchingConfig repositories.MasterMatchingConfigRepository
+	SystemConfig         repositories.SystemConfigRepository
 }
 
 type ConfigOption func(*SystemConfigImpl)
 
-func WithMasterMatching(r repository.MasterMatchingRepository) ConfigOption {
+func WithMasterMatching(r repositories.MasterMatchingRepository) ConfigOption {
 	return func(s *SystemConfigImpl) {
 		s.MasterMatching = r
 	}
 }
 
-func WithMasterMatchingConfig(r repository.MasterMatchingConfigRepository) ConfigOption {
+func WithMasterMatchingConfig(r repositories.MasterMatchingConfigRepository) ConfigOption {
 	return func(s *SystemConfigImpl) {
 		s.MasterMatchingConfig = r
 	}
 }
 
-func WithSystemConfig(r repository.SystemConfigRepository) ConfigOption {
+func WithSystemConfig(r repositories.SystemConfigRepository) ConfigOption {
 	return func(s *SystemConfigImpl) {
 		s.SystemConfig = r
 	}
@@ -56,6 +57,7 @@ func (s *SystemConfigImpl) GetSystemConfig(cfgKey string) (models.SystemConfig, 
 	return record, nil
 }
 
+/**
 func (s *SystemConfigImpl) GetJoinedMatchingConfig() ([]models.JoinedMatchingConfig, error) {
 
 	matchingList, err := s.MasterMatching.LoadMasterMatching()
@@ -88,6 +90,48 @@ func (s *SystemConfigImpl) GetJoinedMatchingConfig() ([]models.JoinedMatchingCon
 	}
 
 	return result, nil
+}*/
+
+func (s *SystemConfigImpl) GetJoinedMatchingConfig() ([]models.JoinedMatchingConfig, error) {
+	// Ambil data
+	configList, err := s.MasterMatchingConfig.LoadMasterMatchingConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	matchingList, err := s.MasterMatching.LoadMasterMatching()
+	if err != nil {
+		return nil, err
+	}
+
+	// Buat map untuk lookup cepat
+	matchingMap := make(map[string]models.MasterMatching, len(matchingList))
+	for _, m := range matchingList {
+		matchingMap[m.Id] = m
+	}
+
+	// Gunakan generic MapSlice2
+	result := utils.MapSlice2(
+		configList,
+		matchingMap,
+		func(c models.MasterMatchingConfig) string { return c.MatchingId },
+		MapConfigAndMatching,
+	)
+
+	return result, nil
+}
+
+func MapConfigAndMatching(c models.MasterMatchingConfig, m models.MasterMatching) models.JoinedMatchingConfig {
+	return models.JoinedMatchingConfig{
+		Id:                c.Id,
+		MatchingId:        c.MatchingId,
+		FieldName:         c.FieldName,
+		FieldWeight:       c.FieldWeight,
+		WatchlistSource:   m.WatchlistSource,
+		Type:              m.Type,
+		MatchingAlgorithm: c.MatchingAlgorithm,
+		IsActive:          c.IsActive && m.IsActive,
+	}
 }
 
 func (s *SystemConfigImpl) GetThresholdFromConfig(cfgKey string) (float64, error) {

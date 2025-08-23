@@ -2,7 +2,7 @@ package services
 
 import (
 	"BlackListWorker/internal/domain/models"
-	"BlackListWorker/internal/domain/repository"
+	"BlackListWorker/internal/domain/repositories"
 )
 
 type MasterNasabahInterface interface {
@@ -10,10 +10,10 @@ type MasterNasabahInterface interface {
 }
 
 type MasterNasabahImpl struct {
-	MasterNasabah repository.MasterNasabahRepository
+	MasterNasabah repositories.MasterNasabahRepository
 }
 
-func NewMasterNasabah(masterNasabah repository.MasterNasabahRepository) MasterNasabahInterface {
+func NewMasterNasabah(masterNasabah repositories.MasterNasabahRepository) MasterNasabahInterface {
 	return &MasterNasabahImpl{
 		MasterNasabah: masterNasabah,
 	}

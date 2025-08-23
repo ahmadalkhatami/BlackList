@@ -1,4 +1,4 @@
-package repository
+package repositories
 
 import (
 	"BlackListWorker/internal/domain/models"
@@ -18,7 +18,7 @@ func NewSQLMasterTerorisRepository(db *sql.DB) MasterTerorisRepository {
 }
 
 func (r sqlMasterTerorisRepository) LoadMasterTeroris() ([]models.MasterTeroris, error) {
-	rows, err := r.DB.Query("SELECT [Id], [Nama], [Alias1], [Alias2], [Alias3], [Alias4], [Type], [TempatLahir], [TanggalLahir], [KTP], [NPWP], [NoPaspor], [CreatedAt], [IsActive] FROM [dbo].[MASTER_TERORIS] WHERE [IsActive] = 1;")
+	rows, err := r.DB.Query("SELECT TOP 1 [Id], [Nama], [Alias1], [Alias2], [Alias3], [Alias4], [Type], [TempatLahir], [TanggalLahir], [KTP], [NPWP], [NoPaspor], [CreatedAt], [IsActive] FROM [dbo].[MASTER_TERORIS] WHERE [IsActive] = 1;")
 	if err != nil {
 		return []models.MasterTeroris{}, err
 	}

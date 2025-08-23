@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"BlackListWorker/config"
 	"BlackListWorker/internal/db"
+	"BlackListWorker/internal/services"
 	"fmt"
 )
 
@@ -31,6 +32,8 @@ func (a *app) Start() error {
 	}
 
 	fmt.Println("Current Database:", currentDB)
+
+	services.MatchCIFWithTeroris()
 
 	// masterMatchingRepo := repository.NewSQLMasterMatchingRepository(sqlDB)
 	// masterMatchingConfigRepo := repository.NewSQLMasterMatchingConfigRepository(sqlDB)

@@ -2,7 +2,7 @@ package services
 
 import (
 	"BlackListWorker/internal/domain/models"
-	"BlackListWorker/internal/domain/repository"
+	"BlackListWorker/internal/domain/repositories"
 	"BlackListWorker/pkg/textutil"
 	"database/sql"
 	"log"
@@ -16,15 +16,15 @@ type WatchlistServiceInterface interface {
 }
 
 type WatchlistServiceImpl struct {
-	MasterDTTOT          repository.MasterTerorisRepository
-	MasterWMD            repository.MasterWMDRepository
-	MasterLocalblacklist repository.MasterLocalBlacklistRepository
+	MasterDTTOT          repositories.MasterTerorisRepository
+	MasterWMD            repositories.MasterWMDRepository
+	MasterLocalblacklist repositories.MasterLocalBlacklistRepository
 }
 
 // func NewWatchlistService(
-// 	masterDTTOT repository.MasterTerorisRepository,
-// 	masterWMD repository.MasterWMDRepository,
-// 	masterLocalBlacklist repository.MasterLocalBlacklistRepository,
+// 	masterDTTOT repositories.MasterTerorisRepository,
+// 	masterWMD repositories.MasterWMDRepository,
+// 	masterLocalBlacklist repositories.MasterLocalBlacklistRepository,
 // ) WatchlistServiceInterface {
 // 	return &WatchlistServiceImpl{
 // 		MasterDTTOT:          masterDTTOT,
@@ -35,19 +35,19 @@ type WatchlistServiceImpl struct {
 
 type WatchlistOption func(*WatchlistServiceImpl)
 
-func WithMasterTeroris(r repository.MasterTerorisRepository) WatchlistOption {
+func WithMasterTeroris(r repositories.MasterTerorisRepository) WatchlistOption {
 	return func(w *WatchlistServiceImpl) {
 		w.MasterDTTOT = r
 	}
 }
 
-func WithMasterWMD(r repository.MasterWMDRepository) WatchlistOption {
+func WithMasterWMD(r repositories.MasterWMDRepository) WatchlistOption {
 	return func(w *WatchlistServiceImpl) {
 		w.MasterWMD = r
 	}
 }
 
-func WithMasterLocalBlacklist(r repository.MasterLocalBlacklistRepository) WatchlistOption {
+func WithMasterLocalBlacklist(r repositories.MasterLocalBlacklistRepository) WatchlistOption {
 	return func(w *WatchlistServiceImpl) {
 		w.MasterLocalblacklist = r
 	}
