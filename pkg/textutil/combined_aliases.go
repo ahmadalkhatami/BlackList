@@ -1,28 +1,54 @@
 package textutil
 
-import "database/sql"
+import (
+	"reflect"
+	"strings"
+)
 
-type StringCombine interface {
-	CombineAliases(a1, a2, a3, a4 sql.NullString) []string
-	WMDAliases(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10 sql.NullString) []string
-}
+func CombineAliases(v interface{}, prefixField string) []string {
+	val := reflect.ValueOf(v)
+	if !val.IsValid() {
+		return nil
+	}
 
-func CombineAliases(a1, a2, a3, a4 sql.NullString) []string {
-	aliases := []string{}
-	for _, a := range []sql.NullString{a1, a2, a3, a4} {
-		if a.Valid && a.String != "" {
-			aliases = append(aliases, a.String)
+	// Kalau pointer, dereference
+	if val.Kind() == reflect.Ptr {
+		val = val.Elem()
+	}
+
+	if val.Kind() != reflect.Struct {
+		return nil
+	}
+
+	typ := val.Type()
+	aliases := make([]string, 0)
+
+	for i := 0; i < val.NumField(); i++ {
+		field := typ.Field(i)
+
+		// Skip field unexported
+		if field.PkgPath != "" {
+			continue
+		}
+
+		// Cek method getter dulu: Get + field.Name
+		methodName := "Get" + field.Name
+		method := reflect.ValueOf(v).MethodByName(methodName)
+
+		var s string
+		if method.IsValid() && method.Type().NumIn() == 0 && method.Type().NumOut() == 1 && method.Type().Out(0).Kind() == reflect.String {
+			// Ambil dari getter
+			out := method.Call(nil)
+			s = out[0].String()
+		} else if strings.HasPrefix(field.Name, prefixField) && val.Field(i).Kind() == reflect.String {
+			// Ambil langsung dari field
+			s = val.Field(i).String()
+		}
+
+		if s != "" {
+			aliases = append(aliases, s)
 		}
 	}
-	return aliases
-}
 
-func WMDAliases(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10 sql.NullString) []string {
-	aliases := []string{}
-	for _, a := range []sql.NullString{a1, a2, a3, a4, a5, a6, a7, a8, a9, a10} {
-		if a.Valid && a.String != "" {
-			aliases = append(aliases, a.String)
-		}
-	}
 	return aliases
 }

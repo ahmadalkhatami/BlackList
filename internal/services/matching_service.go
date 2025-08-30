@@ -20,22 +20,23 @@ type MatchingServiceInterface interface {
 	MatchCIFWithTeroris() ([]models.MatchingResult, map[int64][]models.MatchingDetail, error)
 }
 
-// ===== MATCHING UNTUK MASTER_TERORIS =====
 func MatchCIFWithTeroris() ([]models.MatchingResult, map[int64][]models.MatchingDetail, error) {
 
 	connector := dbcon.GetConnector()
 	sqlDB, err := connector.Connect()
 	if err != nil {
-		// return nil, nil
 		return []models.MatchingResult{}, map[int64][]models.MatchingDetail{}, err
 	}
 	defer sqlDB.Close()
+
+	var results []models.MatchingResult
+	detailsMap := make(map[int64][]models.MatchingDetail)
+	fieldConfig := make(map[string]models.JoinedMatchingConfig)
 
 	masterMatchingRepo := repositories.NewSQLMasterMatchingRepository(sqlDB)
 	masterMatchingConfigRepo := repositories.NewSQLMasterMatchingConfigRepository(sqlDB)
 	systemConfigRepo := repositories.NewSQLSystemConfigRepository(sqlDB)
 
-	// configService := NewConfigService(masterMatchingRepo, masterMatchingConfigRepo, systemConfigRepo)
 	configService := NewConfigService(
 		WithMasterMatching(masterMatchingRepo),
 		WithMasterMatchingConfig(masterMatchingConfigRepo),
@@ -50,20 +51,17 @@ func MatchCIFWithTeroris() ([]models.MatchingResult, map[int64][]models.Matching
 	masterLocalBalcklistRepo := repositories.NewSQLMasterLocalBlacklistRepository(sqlDB)
 
 	watchlistService := NewWatchlistService(
-		// masterDTTOTRepo, masterWMDRepo, masterLocalBalcklistRepo
 		WithMasterTeroris(masterDTTOTRepo),
 		WithMasterWMD(masterWMDRepo),
 		WithMasterLocalBlacklist(masterLocalBalcklistRepo),
 	)
 
-	// masterDTTOT, err := watchlistService.LoadDTTOT()
-	// masterWMD, err := watchlistService.LoadWMD()
-	// masterLocalBlacklist, err := watchlistService.LoadLocalBlacklist()
+	allWatchlists, err := watchlistService.LoadAllWatchlists()
+	if err != nil {
+		panic(err)
+	}
 
-	var results []models.MatchingResult
-	detailsMap := make(map[int64][]models.MatchingDetail)
-	// fieldConfig := map[string]models.MatchingConfig{}
-	fieldConfig := make(map[string]models.JoinedMatchingConfig)
+	fmt.Println("Total Watchlists:", len(allWatchlists))
 
 	// Ambil threshold dari SYSTEM_CONFIG
 	threshold, err := configService.GetThresholdFromConfig("MATCHING_THRESHOLD")
@@ -74,6 +72,7 @@ func MatchCIFWithTeroris() ([]models.MatchingResult, map[int64][]models.Matching
 
 	configs, err := configService.GetJoinedMatchingConfig()
 	if err != nil {
+		fmt.Printf("❌ Error getting matching config: %v\n", err)
 		return []models.MatchingResult{}, map[int64][]models.MatchingDetail{}, err
 	}
 
@@ -575,18 +574,18 @@ func getCIFValueByField(cif models.MasterNasabah, field string) string {
 	case "nama", "namanasabah":
 		return cif.NamaNasabah
 	case "tempatlahir":
-		return cif.TempatLahir
+		return *cif.TempatLahir
 	case "tanggallahir":
 		if !cif.TanggalLahir.IsZero() {
 			return cif.TanggalLahir.Format("2006-01-02")
 		}
 		return ""
 	case "ktp":
-		return cif.KTP
+		return *cif.KTP
 	case "npwp":
-		return cif.NPWP
+		return *cif.NPWP
 	case "nopaspor":
-		return cif.NoPaspor
+		return *cif.NoPaspor
 	default:
 		return ""
 	}
@@ -599,31 +598,31 @@ func getWatchlistValuesByField(wl models.MasterWatchlist, field string) []string
 		if strings.TrimSpace(wl.Nama) != "" {
 			values = append(values, wl.Nama)
 		}
-		for _, alias := range wl.Aliases { // alias sudah slice di struct
+		for _, alias := range wl.Aliases {
 			if strings.TrimSpace(alias) != "" {
 				values = append(values, alias)
 			}
 		}
 		return values
 	case "tempatlahir":
-		if wl.TempatLahir != "" {
-			return []string{wl.TempatLahir}
+		if wl.TempatLahir != nil && strings.TrimSpace(*wl.TempatLahir) != "" {
+			return []string{*wl.TempatLahir}
 		}
 	case "tanggallahir":
-		if !wl.TanggalLahir.IsZero() {
+		if wl.TanggalLahir != nil && !wl.TanggalLahir.IsZero() {
 			return []string{wl.TanggalLahir.Format("2006-01-02")}
 		}
 	case "ktp":
-		if wl.KTP != "" {
-			return []string{wl.KTP}
+		if wl.KTP != nil && strings.TrimSpace(*wl.KTP) != "" {
+			return []string{*wl.KTP}
 		}
 	case "npwp":
-		if wl.NPWP != "" {
-			return []string{wl.NPWP}
+		if wl.NPWP != nil && strings.TrimSpace(*wl.NPWP) != "" {
+			return []string{*wl.NPWP}
 		}
 	case "nopaspor":
-		if wl.NoPaspor != "" {
-			return []string{wl.NoPaspor}
+		if wl.NoPaspor != nil && strings.TrimSpace(*wl.NoPaspor) != "" {
+			return []string{*wl.NoPaspor}
 		}
 	}
 	return []string{}

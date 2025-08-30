@@ -3,7 +3,7 @@ package models
 import "time"
 
 type MatchingResult struct {
-	ID              string
+	ID              int64
 	BatchID         string
 	CIFNumber       string
 	CustomerName    string
