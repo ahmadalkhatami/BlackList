@@ -51,7 +51,7 @@ func (wm *WorkerManager) Run(tableA, tableB []models.MasterNasabah) []models.Mat
 						//if score >= wm.Threshold {
 						out = append(out, models.MatchingResult{
 							ID:              a.Id,
-							BatchID:         "123", // make function for generate batching ID
+							BatchID:         123, // make function for generate batching ID
 							CIFNumber:       a.CIFNumber,
 							CustomerName:    a.NamaNasabah,
 							WatchlistID:     123, //will get from master_mathing and master_matching_config

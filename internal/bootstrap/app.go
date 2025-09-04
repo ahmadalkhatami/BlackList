@@ -3,7 +3,9 @@ package bootstrap
 import (
 	"BlackListWorker/config"
 	"BlackListWorker/internal/db"
+	"BlackListWorker/internal/domain/models"
 	"BlackListWorker/internal/services"
+	"database/sql"
 	"fmt"
 )
 
@@ -14,81 +16,76 @@ func NewApp() *app {
 }
 
 func (a *app) Start() error {
-
+	// 1. Load environment variables
 	config.LoadEnv()
-	dbConfig := config.Load()
 
-	connector := db.NewSQLServerConnector(dbConfig.DBServer, dbConfig.DBUser, dbConfig.DBPassword, dbConfig.DBName)
-	sqlDB, err := connector.Connect()
+	// 2. Load config & connect to DB
+	cfg := config.Load()
+	conn := db.NewSQLServerConnector(cfg.DBServer, cfg.DBUser, cfg.DBPassword, cfg.DBName)
+
+	sqlDB, err := conn.Connect()
 	if err != nil {
-		return fmt.Errorf("failed to connect: %w", err)
+		return fmt.Errorf("connect db: %w", err)
 	}
 	defer sqlDB.Close()
 
+	// 3. Print current DB
+	if err := printCurrentDB(sqlDB); err != nil {
+		return err
+	}
+
+	// 4. Init matching service
+	svc, err := services.NewMatchingService(sqlDB)
+	if err != nil {
+		return fmt.Errorf("create matching service: %w", err)
+	}
+
+	// 5. Run matching
+	results, details, err := svc.RunAll()
+	if err != nil {
+		return fmt.Errorf("run matching service: %w", err)
+	}
+
+	// 6. Save results
+	return saveResults(sqlDB, results, details)
+}
+
+func printCurrentDB(sqlDB *sql.DB) error {
 	rows, err := sqlDB.Query("SELECT DB_NAME() AS CurrentDB")
+	if err != nil {
+		return fmt.Errorf("query current db: %w", err)
+	}
+	defer rows.Close()
+
 	var currentDB string
 	for rows.Next() {
-		rows.Scan(&currentDB)
+		if err := rows.Scan(&currentDB); err != nil {
+			return fmt.Errorf("scan current db: %w", err)
+		}
 	}
 
 	fmt.Println("Current Database:", currentDB)
+	return nil
+}
 
-	services.MatchCIFWithTeroris()
+// saveResults sekarang menerima map[int64][]models.MatchingDetail
+func saveResults(sqlDB *sql.DB, results []models.MatchingResult, details map[int64][]models.MatchingDetail) error {
+	// Get next batch ID
+	batchID, err := services.GetNextBatchID(sqlDB)
+	if err != nil {
+		return fmt.Errorf("get batch id: %w", err)
+	}
 
-	// masterMatchingRepo := repository.NewSQLMasterMatchingRepository(sqlDB)
-	// masterMatchingConfigRepo := repository.NewSQLMasterMatchingConfigRepository(sqlDB)
-	// systemConfigRepo := repository.NewSQLSystemConfigRepository(sqlDB)
+	// Assign batchID ke setiap result
+	for i := range results {
+		results[i].BatchID = batchID
+	}
 
-	// configService := services.NewConfigService(masterMatchingRepo, masterMatchingConfigRepo, systemConfigRepo)
+	// Insert results dan detail
+	if err := services.InsertMatchingResults(sqlDB, results, details); err != nil {
+		return fmt.Errorf("failed to insert matching results: %w", err)
+	}
 
-	// matchConfigs, err := configService.GetJoinedMatchingConfig()
-	// if err != nil {
-	// 	return fmt.Errorf("error while getting configs: %w", err)
-	// }
-
-	// for _, j := range matchConfigs {
-	// 	fmt.Printf("ID=%s, MatchingID=%s, Source=%s, Field=%s, Weight=%.2f, Type=%t, Algorithm=%s\n",
-	// 		j.Id, j.MatchingId, j.WatchlistSource, j.FieldName, j.FieldWeight, j.Type, j.MatchingAlgorithm)
-	// }
-
-	// masterNasabahRepo := repository.NewSQLMasterNasabahRepository(sqlDB)
-	// masterNasabahService := services.NewMasterNasabah(masterNasabahRepo)
-
-	// masterNasabah, err := masterNasabahService.Load()
-
-	// for _, j := range masterNasabah {
-	// 	fmt.Printf("ID: %s, CIF: %s, Nama: %s, Tempat Lahir: %s, Tanggal Lahir: %s, KTP: %s, NPWP: %s, No Paspor: %s, Status: %s, Created Date: %s",
-	// 		j.Id, j.CIFNumber, j.NamaNasabah, j.TanggalLahir, j.TanggalLahir, j.KTP, j.NPWP, j.NoPaspor, j.StatusNasabah, j.CreatedAt)
-	// 	fmt.Println()
-	// }
-
-	// masterDTTOTRepo := repository.NewSQLMasterTerorisRepository(sqlDB)
-	// masterWMDRepo := repository.NewSQLMasterWMDRepository(sqlDB)
-	// masterLocalBalcklistRepo := repository.NewSQLMasterLocalBlacklistRepository(sqlDB)
-
-	// watchlistService := services.NewWatchlistService(masterDTTOTRepo, masterWMDRepo, masterLocalBalcklistRepo)
-
-	// masterDTTOT, err := watchlistService.LoadDTTOT()
-	// masterWMD, err := watchlistService.LoadWMD()
-	// masterLocalBlacklist, err := watchlistService.LoadLocalBlacklist()
-
-	// for _, j := range masterDTTOT {
-	// 	fmt.Printf("ID: %s, Nama: %s, Alias1: %s, Alias2: %s, Alias3: %s, Alias4: %s, Type: %s, Tempat Lahir: %s, Tanggal Lahir: %s, KTP: %s, NPWP: %s, NoPaspor: %s, Created Date: %s, Status: %s",
-	// 		j.Id, j.Nama, j.Alias1, j.Alias2, j.Alias3, j.Alias4, j.Type, j.TempatLahir, j.TanggalLahir, j.KTP, j.NPWP, j.NoPaspor, j.CreatedAt, j.IsActive)
-	// 	fmt.Println()
-	// }
-
-	// for _, j := range masterWMD {
-	// 	fmt.Printf("ID: %s, Nama: %s, Alias1: %s, Alias2: %s, Alias3: %s, Alias4: %s, Alias5: %s, Alias6: %s, Alias7: %s, Alias8: %s, Alias9: %s, Alias10: %s, Type: %s, Tempat Lahir: %s, Tanggal Lahir: %s, KTP: %s, NPWP: %s, NoPaspor: %s, Created Date: %s, Status: %s",
-	// 		j.Id, j.Nama, j.Alias1, j.Alias2, j.Alias3, j.Alias4, j.Alias5, j.Alias6, j.Alias7, j.Alias8, j.Alias9, j.Alias10, j.Type, j.TempatLahir, j.TanggalLahir, j.KTP, j.NPWP, j.NoPaspor, j.CreatedAt, j.IsActive)
-	// 	fmt.Println()
-	// }
-
-	// for _, j := range masterLocalBlacklist {
-	// 	fmt.Printf("ID: %s, Nama: %s, Alias1: %s, Alias2: %s, Alias3: %s, Alias4: %s, Type: %s, Tempat Lahir: %s, Tanggal Lahir: %s, KTP: %s, NPWP: %s, NoPaspor: %s, Created Date: %s, Status: %s",
-	// 		j.Id, j.Nama, j.Alias1, j.Alias2, j.Alias3, j.Alias4, j.Type, j.TempatLahir, j.TanggalLahir, j.KTP, j.NPWP, j.NoPaspor, j.CreatedAt, j.IsActive)
-	// 	fmt.Println()
-	// }
-
+	fmt.Printf("Inserted %d results with BatchID %d\n", len(results), batchID)
 	return nil
 }

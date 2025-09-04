@@ -1,7 +1,6 @@
 package services
 
 import (
-	dbcon "BlackListWorker/internal/db"
 	"BlackListWorker/internal/domain/models"
 	"BlackListWorker/internal/domain/repositories"
 	"BlackListWorker/internal/utils"
@@ -14,519 +13,81 @@ import (
 	"github.com/agext/levenshtein"
 )
 
-const threshold = 0.85
-
-type MatchingServiceInterface interface {
-	MatchCIFWithTeroris() ([]models.MatchingResult, map[int64][]models.MatchingDetail, error)
+// MatchingService mengoordinasikan proses matching CIF dengan berbagai sumber watchlist.
+type MatchingService struct {
+	DB               *sql.DB
+	configService    SystemConfigInterface
+	masterNasabah    MasterNasabahInterface
+	watchlistService WatchlistServiceInterface
 }
 
-func MatchCIFWithTeroris() ([]models.MatchingResult, map[int64][]models.MatchingDetail, error) {
+// --- Contract minimal untuk service lain agar file ini self-contained ---
+// (Sesuaikan dengan interface yang sudah kamu punya; ini kompatibel dengan kode sebelumnya.)
 
-	connector := dbcon.GetConnector()
-	sqlDB, err := connector.Connect()
-	if err != nil {
-		return []models.MatchingResult{}, map[int64][]models.MatchingDetail{}, err
-	}
-	defer sqlDB.Close()
+// NewMatchingService membangun semua dependency dari *sql.DB.
+func NewMatchingService(db *sql.DB) (*MatchingService, error) {
+	// Repositories
+	masterMatchingRepo := repositories.NewSQLMasterMatchingRepository(db)
+	masterMatchingConfigRepo := repositories.NewSQLMasterMatchingConfigRepository(db)
+	systemConfigRepo := repositories.NewSQLSystemConfigRepository(db)
 
-	var results []models.MatchingResult
-	detailsMap := make(map[int64][]models.MatchingDetail)
-	fieldConfig := make(map[string]models.JoinedMatchingConfig)
-
-	masterMatchingRepo := repositories.NewSQLMasterMatchingRepository(sqlDB)
-	masterMatchingConfigRepo := repositories.NewSQLMasterMatchingConfigRepository(sqlDB)
-	systemConfigRepo := repositories.NewSQLSystemConfigRepository(sqlDB)
-
+	// Services pendukung (mengikuti pola yang sudah ada di project-mu)
 	configService := NewConfigService(
 		WithMasterMatching(masterMatchingRepo),
 		WithMasterMatchingConfig(masterMatchingConfigRepo),
 		WithSystemConfig(systemConfigRepo),
 	)
 
-	masterNasabahRepo := repositories.NewSQLMasterNasabahRepository(sqlDB)
+	masterNasabahRepo := repositories.NewSQLMasterNasabahRepository(db)
 	masterNasabahService := NewMasterNasabah(masterNasabahRepo)
 
-	masterDTTOTRepo := repositories.NewSQLMasterTerorisRepository(sqlDB)
-	masterWMDRepo := repositories.NewSQLMasterWMDRepository(sqlDB)
-	masterLocalBalcklistRepo := repositories.NewSQLMasterLocalBlacklistRepository(sqlDB)
+	masterDTTOTRepo := repositories.NewSQLMasterTerorisRepository(db)
+	masterWMDRepo := repositories.NewSQLMasterWMDRepository(db)
+	masterLocalBlacklistRepo := repositories.NewSQLMasterLocalBlacklistRepository(db)
 
 	watchlistService := NewWatchlistService(
 		WithMasterTeroris(masterDTTOTRepo),
 		WithMasterWMD(masterWMDRepo),
-		WithMasterLocalBlacklist(masterLocalBalcklistRepo),
+		WithMasterLocalBlacklist(masterLocalBlacklistRepo),
 	)
 
-	allWatchlists, err := watchlistService.LoadAllWatchlists()
-	if err != nil {
-		panic(err)
-	}
-
-	fmt.Println("Total Watchlists:", len(allWatchlists))
-
-	// Ambil threshold dari SYSTEM_CONFIG
-	threshold, err := configService.GetThresholdFromConfig("MATCHING_THRESHOLD")
-	if err != nil {
-		fmt.Printf("❌ Error getting threshold: %v\n", err)
-		return []models.MatchingResult{}, map[int64][]models.MatchingDetail{}, err
-	}
-
-	configs, err := configService.GetJoinedMatchingConfig()
-	if err != nil {
-		fmt.Printf("❌ Error getting matching config: %v\n", err)
-		return []models.MatchingResult{}, map[int64][]models.MatchingDetail{}, err
-	}
-
-	// Ambil config untuk MASTER_TERORIS saja
-	for _, cfg := range configs {
-		if strings.ToUpper(cfg.WatchlistSource) == "MASTER_TERORIS" && cfg.IsActive {
-			fieldConfig[strings.ToLower(cfg.FieldName)] = cfg
-		}
-	}
-
-	// fmt.Printf("📌 Field config untuk MASTER_TERORIS: %+v\n", fieldConfig)
-	cifs, err := masterNasabahService.Load()
-	if err != nil {
-		return []models.MatchingResult{}, map[int64][]models.MatchingDetail{}, err
-	}
-
-	terorisList, err := watchlistService.LoadDTTOT()
-	if err != nil {
-		return []models.MatchingResult{}, map[int64][]models.MatchingDetail{}, err
-	}
-
-	cifKeys := utils.GetStructKeys(&models.MasterNasabah{})
-	terorisKeys := utils.GetStructKeys(&models.MasterTeroris{})
-	fmt.Printf("📌 Field di MasterNasabah: %+v\n", cifKeys)
-	fmt.Printf("📌 Field di MasterTeroris: %+v\n", terorisKeys)
-	fmt.Printf("📌 Field di Config: %+v\n", configs)
-	fmt.Printf("📌 Field di FieldConfig: %+v\n", fieldConfig)
-
-	return nil, nil, nil
-
-	for _, cif := range cifs {
-		for _, wl := range terorisList {
-			if !wl.IsActive {
-				continue
-			}
-
-			// fmt.Printf("\n🚀 Proses CIF: %s | DTTOT: %s",
-			// 	cif.NamaNasabah, wl.Nama)
-
-			totalWeight := 0.0
-			totalScore := 0.0
-			var matchedFields []models.MatchingDetail
-
-			// for field, cfg := range fieldConfig {
-
-			// 	/*
-			// 		custVal := getCIFValueByField(cif, field)
-			// 		watchlistValues := getWatchlistValuesByField(wl, field)
-
-			// 		maxScore := 0.0
-			// 		bestMatchVal := ""
-			// 		for _, wlVal := range watchlistValues {
-			// 			score := matchScore(custVal, wlVal, cfg.MatchingAlgorithm)
-			// 			if score > maxScore {
-			// 				maxScore = score
-			// 				bestMatchVal = wlVal
-			// 			}
-			// 		}
-
-			// 		// Debug per field
-			// 		fmt.Printf("   🔍 Field: %s | CIF: '%s' | Watchlist: '%s' | Score: %.2f | Algoritma: %s\n",
-			// 			field, custVal, bestMatchVal, maxScore, cfg.MatchingAlgorithm)
-
-			// 		totalScore += maxScore * cfg.FieldWeight
-			// 		totalWeight += cfg.FieldWeight
-
-			// 		matchedFields = append(matchedFields, models.MatchingDetail{
-			// 			FieldName:      field,
-			// 			CustomerValue:  custVal,
-			// 			WatchlistValue: bestMatchVal,
-			// 			FieldScore:     maxScore,
-			// 			FieldWeight:    cfg.FieldWeight,
-			// 			AlgorithmUsed:  cfg.MatchingAlgorithm,
-			// 		}) */
-
-			// 	fmt.Printf("   🔍 Field: %s | Algoritma: %s | Bobot: %.2f\n", field, cfg.MatchingAlgorithm, cfg.FieldWeight)
-
-			// 	matchedFields = append(matchedFields, models.MatchingDetail{
-			// 		FieldName:      "Not Implemented",
-			// 		CustomerValue:  "Not Implemented",
-			// 		WatchlistValue: "Not Implemented",
-			// 		FieldScore:     0,
-			// 		FieldWeight:    0.0,
-			// 		AlgorithmUsed:  "Not Implemented",
-			// 	})
-			// }
-
-			if totalWeight == 0 {
-				fmt.Println("⚠️ Skip: totalWeight = 0 (tidak ada config aktif)")
-				continue
-			}
-
-			finalScore := totalScore / totalWeight
-			// fmt.Printf("➡️ FinalScore CIF %s vs Watchlist %s = %.2f (Threshold %.2f)\n",
-			// 	cif.NamaNasabah, wl.Nama, finalScore, threshold)
-
-			if finalScore >= threshold {
-				result := models.MatchingResult{
-					CIFNumber:    cif.CIFNumber,
-					CustomerName: cif.NamaNasabah,
-					// WatchlistID:     wl.ID,
-					WatchlistID:     0,
-					WatchlistSource: "MASTER_TERORIS",
-					SimilarityScore: finalScore,
-					Status:          "SUCCESS",
-					ProcessDate:     time.Now(),
-					ProcessTime:     time.Now(),
-					CreatedAt:       time.Now(),
-				}
-
-				resultIndex := int64(len(results)) // index sebelum append
-				results = append(results, result)
-				detailsMap[resultIndex] = matchedFields
-
-				fmt.Printf("✅ MATCH ditemukan! CIF %s cocok dengan Watchlist %s (Score: %.2f)\n",
-					cif.NamaNasabah, wl.Nama, finalScore)
-			} else {
-				fmt.Printf("❌ Tidak match (FinalScore %.2f < Threshold %.2f)\n", finalScore, threshold)
-			}
-		}
-	}
-
-	return results, detailsMap, nil
+	return &MatchingService{
+		DB:               db,
+		configService:    configService,
+		masterNasabah:    masterNasabahService,
+		watchlistService: watchlistService,
+	}, nil
 }
 
-func precomputeCIFValues(cifs []models.MasterNasabah, fieldConfig map[string]models.MatchingConfig) []map[string]string {
-	result := make([]map[string]string, len(cifs))
-	for i, cif := range cifs {
-		m := make(map[string]string)
-		for field := range fieldConfig {
-			m[field] = getCIFValueByField(cif, field)
-		}
-		result[i] = m
-	}
-	return result
-}
-
-func precomputeWMDValues(wmdList []models.MasterWatchlist, fieldConfig map[string]models.MatchingConfig) []map[string][]string {
-	result := make([]map[string][]string, len(wmdList))
-	for i, wl := range wmdList {
-		m := make(map[string][]string)
-		for field := range fieldConfig {
-			m[field] = getWatchlistValuesByField(wl, field)
-		}
-		result[i] = m
-	}
-	return result
-}
-
-func MatchCIFWithWMD(
-	db *sql.DB,
-	cifs []models.MasterNasabah,
-	wmdList []models.MasterWatchlist,
-	configs []models.MatchingConfig,
-) ([]models.MatchingResult, map[int64][]models.MatchingDetail) {
-
-	var (
-		results     []models.MatchingResult
-		detailsMap  = make(map[int64][]models.MatchingDetail)
-		fieldConfig = make(map[string]models.MatchingConfig)
-		mu          sync.Mutex
-		wg          sync.WaitGroup
-	)
-
-	// threshold := GetThresholdFromConfig("MATCHING_THRESHOLD")
-
-	// 1. Build config map
-	for _, cfg := range configs {
-		if strings.ToUpper(cfg.WatchlistSource) == "MASTER_WMD" && cfg.IsActive {
-			fieldConfig[strings.ToLower(cfg.FieldName)] = cfg
-		}
+// RunAll melakukan matching untuk semua sumber (TERORIS, WMD, LOCAL_BLACKLIST)
+func (s *MatchingService) RunAll() ([]models.MatchingResult, map[int64][]models.MatchingDetail, error) {
+	threshold, err := s.configService.GetThresholdFromConfig("MATCHING_THRESHOLD")
+	if err != nil {
+		return nil, nil, fmt.Errorf("get threshold: %w", err)
 	}
 
-	// 2. Filter aktif WMD
-	activeWMD := make([]models.MasterWatchlist, 0, len(wmdList))
-	for _, wl := range wmdList {
-		if wl.IsActive && wl.Source == "MASTER_WMD" {
-			activeWMD = append(activeWMD, wl)
-		}
+	// fmt.Printf("threshold: %s", err)
+
+	configsJoined, err := s.configService.GetJoinedMatchingConfig()
+	if err != nil {
+		return nil, nil, fmt.Errorf("get joined matching config: %w", err)
 	}
 
-	// 3. Precompute values
-	cifValues := precomputeCIFValues(cifs, fieldConfig)
-	wmdValues := precomputeWMDValues(activeWMD, fieldConfig)
+	fmt.Printf("threshold: %s", err)
 
-	// 4. Parallel processing per CIF
-	for i, cif := range cifs {
-		wg.Add(1)
-		go func(i int, cif models.MasterNasabah) {
-			defer wg.Done()
-
-			var localResults []models.MatchingResult
-			localDetails := make(map[int64][]models.MatchingDetail)
-
-			for j, wl := range activeWMD {
-				totalWeight := 0.0
-				totalScore := 0.0
-				var matchedFields []models.MatchingDetail
-
-				for field, cfg := range fieldConfig {
-					custVal := cifValues[i][field]
-					watchlistVals := wmdValues[j][field]
-
-					maxScore := 0.0
-					bestMatch := ""
-					for _, wlVal := range watchlistVals {
-						score := matchScore(custVal, wlVal, cfg.MatchingAlgorithm)
-						if score > maxScore {
-							maxScore = score
-							bestMatch = wlVal
-						}
-					}
-
-					totalScore += maxScore * cfg.FieldWeight
-					totalWeight += cfg.FieldWeight
-
-					matchedFields = append(matchedFields, models.MatchingDetail{
-						FieldName:      field,
-						CustomerValue:  custVal,
-						WatchlistValue: bestMatch,
-						FieldScore:     maxScore,
-						FieldWeight:    cfg.FieldWeight,
-						AlgorithmUsed:  cfg.MatchingAlgorithm,
-					})
-				}
-
-				if totalWeight == 0 {
-					continue
-				}
-
-				finalScore := totalScore / totalWeight
-				if finalScore >= threshold {
-					result := models.MatchingResult{
-						CIFNumber:       cif.CIFNumber,
-						CustomerName:    cif.NamaNasabah,
-						WatchlistID:     wl.ID,
-						WatchlistSource: "MASTER_WMD",
-						SimilarityScore: finalScore,
-						Status:          "SUCCESS",
-						ProcessDate:     time.Now(),
-						ProcessTime:     time.Now(),
-						CreatedAt:       time.Now(),
-					}
-					idx := int64(len(localResults) + len(results)) // sementara
-					localResults = append(localResults, result)
-					localDetails[idx] = matchedFields
-				}
-			}
-
-			// Gabungkan hasil ke shared slice/map
-			mu.Lock()
-			baseIdx := int64(len(results))
-			results = append(results, localResults...)
-			for k, v := range localDetails {
-				detailsMap[baseIdx+k] = v
-			}
-			mu.Unlock()
-		}(i, cif)
+	cifs, err := s.masterNasabah.Load()
+	if err != nil {
+		return nil, nil, fmt.Errorf("load CIF: %w", err)
 	}
 
-	wg.Wait()
-	return results, detailsMap
-}
-
-// ===== MATCHING UNTUK MASTER_WMD =====
-/*
-func MatchCIFWithWMD(
-	db *sql.DB,
-	cifs []models.MasterNasabah,
-	wmdList []models.MasterWatchlist,
-	configs []models.MatchingConfig,
-) ([]models.MatchingResult, map[int64][]models.MatchingDetail) {
-
-	var results []models.MatchingResult
-	detailsMap := make(map[int64][]models.MatchingDetail)
-	fieldConfig := map[string]models.MatchingConfig{}
-
-	// threshold := GetThresholdFromConfig("MATCHING_THRESHOLD")
-
-	for _, cfg := range configs {
-		if strings.ToUpper(cfg.WatchlistSource) == "MASTER_WMD" && cfg.IsActive {
-			fieldConfig[strings.ToLower(cfg.FieldName)] = cfg
-		}
+	allWatchlists, err := s.watchlistService.LoadAllWatchlists()
+	if err != nil {
+		return nil, nil, fmt.Errorf("load watchlists: %w", err)
 	}
 
-	for _, cif := range cifs {
-		for _, wl := range wmdList {
-			if !wl.IsActive || wl.Source != "MASTER_WMD" {
-				continue
-			}
-
-			totalWeight := 0.0
-			totalScore := 0.0
-			var matchedFields []models.MatchingDetail
-
-			for field, cfg := range fieldConfig {
-				custVal := getCIFValueByField(cif, field)
-				watchlistValues := getWatchlistValuesByField(wl, field)
-
-				maxScore := 0.0
-				bestMatchVal := ""
-				for _, wlVal := range watchlistValues {
-					score := matchScore(custVal, wlVal, cfg.MatchingAlgorithm)
-					if score > maxScore {
-						maxScore = score
-						bestMatchVal = wlVal
-					}
-				}
-
-				totalScore += maxScore * cfg.FieldWeight
-				totalWeight += cfg.FieldWeight
-
-				matchedFields = append(matchedFields, models.MatchingDetail{
-					FieldName:      field,
-					CustomerValue:  custVal,
-					WatchlistValue: bestMatchVal,
-					FieldScore:     maxScore,
-					FieldWeight:    cfg.FieldWeight,
-					AlgorithmUsed:  cfg.MatchingAlgorithm,
-				})
-			}
-
-			if totalWeight == 0 {
-				continue
-			}
-
-			finalScore := totalScore / totalWeight
-
-			if finalScore >= threshold {
-				result := models.MatchingResult{
-					CIFNumber:       cif.CIFNumber,
-					CustomerName:    cif.NamaNasabah,
-					WatchlistID:     wl.ID,
-					WatchlistSource: "MASTER_WMD",
-					SimilarityScore: finalScore,
-					Status:          "SUCCESS",
-					ProcessDate:     time.Now(),
-					ProcessTime:     time.Now(),
-					CreatedAt:       time.Now(),
-				}
-
-				resultIndex := int64(len(results))
-				results = append(results, result)
-				detailsMap[resultIndex] = matchedFields
-			}
-		}
-	}
-	return results, detailsMap
-}*/
-
-// ===== MATCHING UNTUK MASTER_LOCAL_BLACKLIST =====
-func MatchCIFWithLocalBlacklist(
-	db *sql.DB,
-	cifs []models.MasterNasabah,
-	localList []models.MasterWatchlist,
-	configs []models.MatchingConfig,
-) ([]models.MatchingResult, map[int64][]models.MatchingDetail) {
-
-	var results []models.MatchingResult
-	detailsMap := make(map[int64][]models.MatchingDetail)
-	fieldConfig := map[string]models.MatchingConfig{}
-
-	// Ambil threshold
-	// threshold := GetThresholdFromConfig("MATCHING_THRESHOLD")
-
-	// Ambil config utk MASTER_LOCAL_BLACKLIST
-	for _, cfg := range configs {
-		if strings.ToUpper(cfg.WatchlistSource) == "MASTER_LOCAL_BLACKLIST" && cfg.IsActive {
-			fieldConfig[strings.ToLower(cfg.FieldName)] = cfg
-		}
-	}
-
-	for _, cif := range cifs {
-		for _, wl := range localList {
-			if !wl.IsActive || wl.Source != "MASTER_LOCAL_BLACKLIST" {
-				continue
-			}
-
-			totalWeight := 0.0
-			totalScore := 0.0
-			var matchedFields []models.MatchingDetail
-
-			for field, cfg := range fieldConfig {
-				custVal := getCIFValueByField(cif, field)
-				watchlistValues := getWatchlistValuesByField(wl, field)
-
-				maxScore := 0.0
-				bestMatchVal := ""
-				for _, wlVal := range watchlistValues {
-					score := matchScore(custVal, wlVal, cfg.MatchingAlgorithm)
-					if score > maxScore {
-						maxScore = score
-						bestMatchVal = wlVal
-					}
-				}
-
-				totalScore += maxScore * cfg.FieldWeight
-				totalWeight += cfg.FieldWeight
-
-				matchedFields = append(matchedFields, models.MatchingDetail{
-					FieldName:      field,
-					CustomerValue:  custVal,
-					WatchlistValue: bestMatchVal,
-					FieldScore:     maxScore,
-					FieldWeight:    cfg.FieldWeight,
-					AlgorithmUsed:  cfg.MatchingAlgorithm,
-				})
-			}
-
-			if totalWeight == 0 {
-				continue
-			}
-
-			finalScore := totalScore / totalWeight
-
-			if finalScore >= threshold {
-				result := models.MatchingResult{
-					CIFNumber:       cif.CIFNumber,
-					CustomerName:    cif.NamaNasabah,
-					WatchlistID:     wl.ID,
-					WatchlistSource: "MASTER_LOCAL_BLACKLIST",
-					SimilarityScore: finalScore,
-					Status:          "SUCCESS",
-					ProcessDate:     time.Now(),
-					ProcessTime:     time.Now(),
-					CreatedAt:       time.Now(),
-				}
-
-				resultIndex := int64(len(results))
-				results = append(results, result)
-				detailsMap[resultIndex] = matchedFields
-			}
-		}
-	}
-	return results, detailsMap
-}
-
-// ===== MATCHING UNTUK TERORIS + WMD + LOCAL_BLACKLIST SEKALIGUS =====
-func MatchCIFAll(
-	db *sql.DB,
-	cifs []models.MasterNasabah,
-	watchlist []models.MasterWatchlist,
-	configs []models.MatchingConfig,
-) ([]models.MatchingResult, map[int64][]models.MatchingDetail, error) {
-
-	var allResults []models.MatchingResult
-	allDetails := make(map[int64][]models.MatchingDetail)
-
-	// Pisahkan data watchlist berdasarkan source
-	var terorisList []models.MasterWatchlist
-	var wmdList []models.MasterWatchlist
-	var localList []models.MasterWatchlist
-
-	for _, wl := range watchlist {
+	// Split watchlists by source (aktif saja)
+	var terorisList, wmdList, localList []models.MasterWatchlist
+	for _, wl := range allWatchlists {
 		if !wl.IsActive {
 			continue
 		}
@@ -540,103 +101,261 @@ func MatchCIFAll(
 		}
 	}
 
-	/*
-		// Matching TERORIS
-		resultsTeroris, detailsTeroris := MatchCIFWithTeroris(db, cifs, terorisList, configs)
-		for i, r := range resultsTeroris {
-			idx := int64(len(allResults))
-			allResults = append(allResults, r)
-			allDetails[idx] = detailsTeroris[int64(i)]
-		}
+	// Jalankan generic matching per sumber
+	res1, det1 := genericMatch(cifs, terorisList, configsJoined, "MASTER_TERORIS", threshold)
+	res2, det2 := genericMatch(cifs, wmdList, configsJoined, "MASTER_WMD", threshold)
+	res3, det3 := genericMatch(cifs, localList, configsJoined, "MASTER_LOCAL_BLACKLIST", threshold)
 
-		// Matching WMD
-		resultsWMD, detailsWMD := MatchCIFWithWMD(db, cifs, wmdList, configs)
-		for i, r := range resultsWMD {
-			idx := int64(len(allResults))
-			allResults = append(allResults, r)
-			allDetails[idx] = detailsWMD[int64(i)]
-		}
+	// Gabungkan sekaligus reindex details agar konsisten dengan urutan results akhir
+	allResults := make([]models.MatchingResult, 0, len(res1)+len(res2)+len(res3))
+	allDetails := make(map[int64][]models.MatchingDetail)
 
-		// Matching LOCAL BLACKLIST
-		resultsLocal, detailsLocal := MatchCIFWithLocalBlacklist(db, cifs, localList, configs)
-		for i, r := range resultsLocal {
-			idx := int64(len(allResults))
+	appendWithRemap := func(res []models.MatchingResult, det map[int64][]models.MatchingDetail) {
+		for i, r := range res {
+			newIdx := int64(len(allResults))
 			allResults = append(allResults, r)
-			allDetails[idx] = detailsLocal[int64(i)]
-		} */
+			if d, ok := det[int64(i)]; ok {
+				allDetails[newIdx] = d
+			}
+		}
+	}
+
+	appendWithRemap(res1, det1)
+	appendWithRemap(res2, det2)
+	appendWithRemap(res3, det3)
 
 	return allResults, allDetails, nil
 }
 
-// ===== UTIL =====
+// genericMatch mengerjakan matching untuk 1 sumber watchlist tertentu.
+// - configsJoined: gunakan yang sudah include FieldName, FieldWeight, WatchlistSource, MatchingAlgorithm, IsActive.
+// - threshold: ambang final score.
+func genericMatch(
+	cifs []models.MasterNasabah,
+	watchlists []models.MasterWatchlist,
+	configsJoined []models.JoinedMatchingConfig,
+	source string,
+	threshold float64,
+) ([]models.MatchingResult, map[int64][]models.MatchingDetail) {
+	results := make([]models.MatchingResult, 0)
+	detailsMap := make(map[int64][]models.MatchingDetail)
+
+	// 1) Build fieldConfig untuk source yang aktif
+	fieldConfig := make(map[string]models.JoinedMatchingConfig)
+	for _, cfg := range configsJoined {
+		if strings.EqualFold(cfg.WatchlistSource, source) && cfg.IsActive {
+			field := strings.ToLower(cfg.FieldName)
+			fieldConfig[field] = cfg
+		}
+	}
+	if len(fieldConfig) == 0 || len(cifs) == 0 || len(watchlists) == 0 {
+		return results, detailsMap
+	}
+
+	// 2) Precompute values
+	cifValues := precomputeCIFValuesJoined(cifs, fieldConfig)
+	wlValues := precomputeWatchlistValuesJoined(watchlists, fieldConfig)
+
+	// 3) Kerjakan paralel per CIF → hasil dikirim lewat channel agar aman dari race
+	type resWithDetail struct {
+		Result models.MatchingResult
+		Detail []models.MatchingDetail
+	}
+
+	out := make(chan resWithDetail, 1024)
+	var wg sync.WaitGroup
+
+	for i, cif := range cifs {
+		ci := i
+		cifItem := cif
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j, wl := range watchlists {
+				totalWeight := 0.0
+				totalScore := 0.0
+				matched := make([]models.MatchingDetail, 0, len(fieldConfig))
+
+				for field, cfg := range fieldConfig {
+					custVal := cifValues[ci][field]
+					watchVals := wlValues[j][field]
+
+					maxScore := 0.0
+					best := ""
+					for _, wv := range watchVals {
+						s := matchScore(custVal, wv, cfg.MatchingAlgorithm)
+						if s > maxScore {
+							maxScore = s
+							best = wv
+						}
+					}
+
+					totalScore += maxScore * cfg.FieldWeight
+					totalWeight += cfg.FieldWeight
+
+					matched = append(matched, models.MatchingDetail{
+						FieldName:      field,
+						CustomerValue:  custVal,
+						WatchlistValue: best,
+						FieldScore:     maxScore,
+						FieldWeight:    cfg.FieldWeight,
+						AlgorithmUsed:  cfg.MatchingAlgorithm,
+					})
+				}
+
+				if totalWeight == 0 {
+					continue
+				}
+				finalScore := totalScore / totalWeight
+				if finalScore >= threshold {
+					out <- resWithDetail{
+						Result: models.MatchingResult{
+							CIFNumber:       cifItem.CIFNumber,
+							CustomerName:    cifItem.NamaNasabah,
+							WatchlistID:     wl.ID,
+							WatchlistSource: source,
+							SimilarityScore: finalScore,
+							Status:          "SUCCESS",
+							ProcessDate:     time.Now(),
+							ProcessTime:     time.Now(),
+							CreatedAt:       time.Now(),
+						},
+						Detail: matched,
+					}
+				}
+			}
+		}()
+	}
+
+	go func() {
+		wg.Wait()
+		close(out)
+	}()
+
+	// Kumpulkan dan reindex lokal (0..n-1) untuk detailsMap
+	idx := int64(0)
+	for item := range out {
+		results = append(results, item.Result)
+		detailsMap[idx] = item.Detail
+		idx++
+	}
+
+	return results, detailsMap
+}
+
+// ===== PRECOMPUTE (versi JoinedMatchingConfig) =====
+func precomputeCIFValuesJoined(cifs []models.MasterNasabah, fieldCfg map[string]models.JoinedMatchingConfig) []map[string]string {
+	res := make([]map[string]string, len(cifs))
+	for i, cif := range cifs {
+		m := make(map[string]string, len(fieldCfg))
+		for field := range fieldCfg {
+			m[field] = getCIFValueByField(cif, field)
+		}
+		res[i] = m
+	}
+	return res
+}
+
+func precomputeWatchlistValuesJoined(wls []models.MasterWatchlist, fieldCfg map[string]models.JoinedMatchingConfig) []map[string][]string {
+	res := make([]map[string][]string, len(wls))
+	for i, wl := range wls {
+		m := make(map[string][]string, len(fieldCfg))
+		for field := range fieldCfg {
+			m[field] = getWatchlistValuesByField(wl, field)
+		}
+		res[i] = m
+	}
+	return res
+}
+
+// ===== UTIL FIELD EXTRACTORS (lebih aman pointer-nil) =====
 func getCIFValueByField(cif models.MasterNasabah, field string) string {
-	switch field {
+	switch strings.ToLower(field) {
 	case "nama", "namanasabah":
-		return cif.NamaNasabah
+		return strings.TrimSpace(cif.NamaNasabah)
 	case "tempatlahir":
-		return *cif.TempatLahir
+		if cif.TempatLahir != nil {
+			return strings.TrimSpace(*cif.TempatLahir)
+		}
+		return ""
 	case "tanggallahir":
 		if !cif.TanggalLahir.IsZero() {
 			return cif.TanggalLahir.Format("2006-01-02")
 		}
 		return ""
 	case "ktp":
-		return *cif.KTP
+		if cif.KTP != nil {
+			return strings.TrimSpace(*cif.KTP)
+		}
+		return ""
 	case "npwp":
-		return *cif.NPWP
+		if cif.NPWP != nil {
+			return strings.TrimSpace(*cif.NPWP)
+		}
+		return ""
 	case "nopaspor":
-		return *cif.NoPaspor
+		if cif.NoPaspor != nil {
+			return strings.TrimSpace(*cif.NoPaspor)
+		}
+		return ""
 	default:
 		return ""
 	}
 }
 
 func getWatchlistValuesByField(wl models.MasterWatchlist, field string) []string {
-	switch field {
+	switch strings.ToLower(field) {
 	case "nama":
 		values := []string{}
-		if strings.TrimSpace(wl.Nama) != "" {
-			values = append(values, wl.Nama)
+		if s := strings.TrimSpace(wl.Nama); s != "" {
+			values = append(values, s)
 		}
 		for _, alias := range wl.Aliases {
-			if strings.TrimSpace(alias) != "" {
-				values = append(values, alias)
+			if s := strings.TrimSpace(alias); s != "" {
+				values = append(values, s)
 			}
 		}
 		return values
 	case "tempatlahir":
-		if wl.TempatLahir != nil && strings.TrimSpace(*wl.TempatLahir) != "" {
-			return []string{*wl.TempatLahir}
+		if wl.TempatLahir != nil {
+			if s := strings.TrimSpace(*wl.TempatLahir); s != "" {
+				return []string{s}
+			}
 		}
 	case "tanggallahir":
 		if wl.TanggalLahir != nil && !wl.TanggalLahir.IsZero() {
 			return []string{wl.TanggalLahir.Format("2006-01-02")}
 		}
 	case "ktp":
-		if wl.KTP != nil && strings.TrimSpace(*wl.KTP) != "" {
-			return []string{*wl.KTP}
+		if wl.KTP != nil {
+			if s := strings.TrimSpace(*wl.KTP); s != "" {
+				return []string{s}
+			}
 		}
 	case "npwp":
-		if wl.NPWP != nil && strings.TrimSpace(*wl.NPWP) != "" {
-			return []string{*wl.NPWP}
+		if wl.NPWP != nil {
+			if s := strings.TrimSpace(*wl.NPWP); s != "" {
+				return []string{s}
+			}
 		}
 	case "nopaspor":
-		if wl.NoPaspor != nil && strings.TrimSpace(*wl.NoPaspor) != "" {
-			return []string{*wl.NoPaspor}
+		if wl.NoPaspor != nil {
+			if s := strings.TrimSpace(*wl.NoPaspor); s != "" {
+				return []string{s}
+			}
 		}
 	}
 	return []string{}
 }
 
+// Scoring function
 func matchScore(a, b, algorithm string) float64 {
 	a = strings.ToLower(strings.TrimSpace(a))
 	b = strings.ToLower(strings.TrimSpace(b))
-
 	if a == "" || b == "" {
 		return 0
 	}
-
-	switch strings.ToLower(algorithm) {
+	switch strings.ToLower(strings.TrimSpace(algorithm)) {
 	case "levenshtein", "fuzzywuzzy", "ratio":
 		return levenshtein.Similarity(a, b, nil)
 	case "exact":
@@ -649,7 +368,7 @@ func matchScore(a, b, algorithm string) float64 {
 	}
 }
 
-// ===== INSERT RESULT & DETAIL =====
+// ===== INSERT RESULT & DETAIL (dipertahankan, dengan minor perapian) =====
 func InsertMatchingResults(db *sql.DB, results []models.MatchingResult, detailsMap map[int64][]models.MatchingDetail) error {
 	if len(results) == 0 {
 		return nil
@@ -685,7 +404,6 @@ func InsertMatchingResults(db *sql.DB, results []models.MatchingResult, detailsM
 			return fmt.Errorf("insert MATCHING_RESULTS gagal: %w", err)
 		}
 
-		// pake index, bukan WatchlistID
 		if detailList, ok := detailsMap[int64(idx)]; ok {
 			for _, d := range detailList {
 				_, err := db.Exec(queryDetail,
@@ -713,4 +431,46 @@ func GetNextBatchID(db *sql.DB) (int64, error) {
 		return 0, err
 	}
 	return lastBatchID.Int64 + 1, nil
+}
+
+// ===== Helper untuk quick-run satu sumber tertentu jika dibutuhkan =====
+func (s *MatchingService) RunForSource(source string) ([]models.MatchingResult, map[int64][]models.MatchingDetail, error) {
+	threshold, err := s.configService.GetThresholdFromConfig("MATCHING_THRESHOLD")
+	if err != nil {
+		return nil, nil, err
+	}
+	configsJoined, err := s.configService.GetJoinedMatchingConfig()
+	if err != nil {
+		return nil, nil, err
+	}
+	cifs, err := s.masterNasabah.Load()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	allWatchlists, err := s.watchlistService.LoadAllWatchlists()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	filtered := make([]models.MasterWatchlist, 0)
+	for _, wl := range allWatchlists {
+		if wl.IsActive && strings.EqualFold(wl.Source, source) {
+			filtered = append(filtered, wl)
+		}
+	}
+	res, det := genericMatch(cifs, filtered, configsJoined, strings.ToUpper(source), threshold)
+	return res, det, nil
+}
+
+// ===== Debug helpers (opsional) =====
+func DebugPrintFields(cifs []models.MasterNasabah, watchlists []models.MasterWatchlist, configs []models.JoinedMatchingConfig) {
+	cifKeys := utils.GetStructKeys(&models.MasterNasabah{})
+	fmt.Printf("\n📌 Field di MasterNasabah: %+v\n", cifKeys)
+
+	if len(watchlists) > 0 {
+		// Asumsikan salah satu tipe watchlist untuk melihat fields-nya
+		fmt.Printf("📌 Contoh data Watchlist (first): %+v\n", watchlists[0])
+	}
+	fmt.Printf("📌 Jumlah Config Joined: %d\n", len(configs))
 }
