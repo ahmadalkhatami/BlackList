@@ -86,6 +86,6 @@ func saveResults(sqlDB *sql.DB, results []models.MatchingResult, details map[int
 		return fmt.Errorf("failed to insert matching results: %w", err)
 	}
 
-	fmt.Printf("Inserted %d results with BatchID %d\n", len(results), batchID)
+	fmt.Printf("\nInserted %d results with BatchID %d\n", len(results), batchID)
 	return nil
 }

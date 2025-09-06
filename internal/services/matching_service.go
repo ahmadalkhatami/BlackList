@@ -3,7 +3,6 @@ package services
 import (
 	"BlackListWorker/internal/domain/models"
 	"BlackListWorker/internal/domain/repositories"
-	"BlackListWorker/internal/utils"
 	"database/sql"
 	"fmt"
 	"strings"
@@ -66,14 +65,14 @@ func (s *MatchingService) RunAll() ([]models.MatchingResult, map[int64][]models.
 		return nil, nil, fmt.Errorf("get threshold: %w", err)
 	}
 
-	// fmt.Printf("threshold: %s", err)
+	fmt.Printf("threshold: %f", threshold)
 
 	configsJoined, err := s.configService.GetJoinedMatchingConfig()
 	if err != nil {
 		return nil, nil, fmt.Errorf("get joined matching config: %w", err)
 	}
 
-	fmt.Printf("threshold: %s", err)
+	// fmt.Printf("threshold: %s", err)
 
 	cifs, err := s.masterNasabah.Load()
 	if err != nil {
@@ -464,13 +463,13 @@ func (s *MatchingService) RunForSource(source string) ([]models.MatchingResult, 
 }
 
 // ===== Debug helpers (opsional) =====
-func DebugPrintFields(cifs []models.MasterNasabah, watchlists []models.MasterWatchlist, configs []models.JoinedMatchingConfig) {
-	cifKeys := utils.GetStructKeys(&models.MasterNasabah{})
-	fmt.Printf("\n📌 Field di MasterNasabah: %+v\n", cifKeys)
+// func DebugPrintFields(cifs []models.MasterNasabah, watchlists []models.MasterWatchlist, configs []models.JoinedMatchingConfig) {
+// 	cifKeys := utils.GetStructKeys(&models.MasterNasabah{})
+// 	fmt.Printf("\n📌 Field di MasterNasabah: %+v\n", cifKeys)
 
-	if len(watchlists) > 0 {
-		// Asumsikan salah satu tipe watchlist untuk melihat fields-nya
-		fmt.Printf("📌 Contoh data Watchlist (first): %+v\n", watchlists[0])
-	}
-	fmt.Printf("📌 Jumlah Config Joined: %d\n", len(configs))
-}
+// 	if len(watchlists) > 0 {
+// 		// Asumsikan salah satu tipe watchlist untuk melihat fields-nya
+// 		fmt.Printf("📌 Contoh data Watchlist (first): %+v\n", watchlists[0])
+// 	}
+// 	fmt.Printf("📌 Jumlah Config Joined: %d\n", len(configs))
+// }
