@@ -34,4 +34,5 @@ func (m MasterWMD) GetNPWP() *string            { return m.NPWP }
 func (m MasterWMD) GetNoPaspor() *string        { return m.NoPaspor }
 func (m MasterWMD) GetCreatedAt() time.Time     { return m.CreatedAt }
 func (m MasterWMD) GetIsActive() bool           { return m.IsActive }
+func (m MasterWMD) GetType() string             { return m.Type }
 func (m MasterWMD) GetSource() string           { return "MASTER_WMD" }

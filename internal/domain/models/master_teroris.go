@@ -28,4 +28,5 @@ func (m *MasterTeroris) GetNPWP() *string            { return m.NPWP }
 func (m *MasterTeroris) GetNoPaspor() *string        { return m.NoPaspor }
 func (m *MasterTeroris) GetCreatedAt() time.Time     { return m.CreatedAt }
 func (m *MasterTeroris) GetIsActive() bool           { return m.IsActive }
+func (m *MasterTeroris) GetType() string             { return m.Type }
 func (m *MasterTeroris) GetSource() string           { return "MASTER_TERORIS" }
