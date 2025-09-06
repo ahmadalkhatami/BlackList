@@ -15,6 +15,7 @@ type MasterWatchlist struct {
 	NPWP         *string
 	NoPaspor     *string
 	Source       string
+	Type 	     string // INDIVIDU | CORPORATE
 	CreatedAt    time.Time
 	IsActive     bool
 }
@@ -28,6 +29,7 @@ type Watchlistable interface {
 	GetNPWP() *string
 	GetNoPaspor() *string
 	GetSource() string
+	GetType() string
 	GetCreatedAt() time.Time
 	GetIsActive() bool
 }

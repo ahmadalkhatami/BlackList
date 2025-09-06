@@ -106,6 +106,7 @@ func ToWatchlist(item models.Watchlistable) models.MasterWatchlist {
 		NPWP:         item.GetNPWP(),
 		NoPaspor:     item.GetNoPaspor(),
 		Source:       item.GetSource(),
+		Type: 	   	  item.GetType(),
 		CreatedAt:    item.GetCreatedAt(),
 		IsActive:     item.GetIsActive(),
 	}

@@ -30,4 +30,5 @@ func (m *MasterLocalBlacklist) GetNPWP() *string            { return m.NPWP }
 func (m *MasterLocalBlacklist) GetNoPaspor() *string        { return m.NoPaspor }
 func (m *MasterLocalBlacklist) GetCreatedAt() time.Time     { return m.CreatedAt }
 func (m *MasterLocalBlacklist) GetIsActive() bool           { return m.IsActive }
+func (m *MasterLocalBlacklist) GetType() string             { return m.Type }	
 func (m *MasterLocalBlacklist) GetSource() string           { return "MASTER_LOCAL_BLACKLIST" }
