@@ -19,10 +19,10 @@ func LoadWatchlistGeneric(db *sql.DB, tableName, source string, aliasCount int) 
 
 	// Query builder
 	query := fmt.Sprintf(`
-		SELECT Id, Nama, %s, TempatLahir, TanggalLahir, Ktp, Npwp, NoPaspor, 
+		SELECT top 1 Id, Nama, %s, TempatLahir, TanggalLahir, Ktp, Npwp, NoPaspor, 
 		       CreatedAt, UpdatedAt, IsActive 
 		FROM %s
-		WHERE IsActive = 1 AND Nama = 'AHMADElijah Corkery'
+		WHERE IsActive = 1
 	`, aliasCols, tableName)
 
 	rows, err := db.Query(query)

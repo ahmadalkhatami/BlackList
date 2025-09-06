@@ -33,7 +33,7 @@ func MatchCIFWithTeroris(
 			fieldConfig[strings.ToLower(cfg.FieldName)] = cfg
 		}
 	}
-	fmt.Printf("📌 Field config untuk MASTER_TERORIS: %+v\n", fieldConfig)
+	// fmt.Printf("📌 Field config untuk MASTER_TERORIS: %+v\n", fieldConfig)
 
 	for _, cif := range cifs {
 		for _, wl := range terorisList {
@@ -52,6 +52,8 @@ func MatchCIFWithTeroris(
 				custVal := getCIFValueByField(cif, field)
 				watchlistValues := getWatchlistValuesByField(wl, field)
 
+				fmt.Print("custVal:", custVal, " | wlVals:", watchlistValues, " ")
+
 				maxScore := 0.0
 				bestMatchVal := ""
 				for _, wlVal := range watchlistValues {
@@ -63,11 +65,13 @@ func MatchCIFWithTeroris(
 				}
 
 				// Debug per field
-				fmt.Printf("   🔍 Field: %s | CIF: '%s' | Watchlist: '%s' | Score: %.2f | Algoritma: %s\n",
-					field, custVal, bestMatchVal, maxScore, cfg.MatchingAlgorithm)
+				// fmt.Printf("   🔍 Field: %s | CIF: '%s' | Watchlist: '%s' | Score: %.2f | Algoritma: %s\n",
+				// 	field, custVal, bestMatchVal, maxScore, cfg.MatchingAlgorithm)
 
 				totalScore += maxScore * cfg.FieldWeight
 				totalWeight += cfg.FieldWeight
+
+				fmt.Printf("totalWeight:", totalWeight, " | totalScore:", totalScore, "\n")
 
 				matchedFields = append(matchedFields, models.MatchingDetail{
 					FieldName:      field,
@@ -462,6 +466,37 @@ func InsertMatchingResults(db *sql.DB, results []models.MatchingResult, detailsM
 		if err != nil {
 			return fmt.Errorf("insert MATCHING_RESULTS gagal: %w", err)
 		}
+
+// 		fmt.Printf(`
+// 💾 QUERY RESULT:
+// %s
+// VALUES (
+//   BatchId=%v,
+//   CIFNumber='%v',
+//   CustomerName='%v',
+//   WatchlistId=%v,
+//   WatchlistSource='%v',
+//   SimilarityScore=%.4f,
+//   Status='%v',
+//   ProcessDate='%v',
+//   ProcessTime='%v',
+//   CreatedAt='%v'
+// )
+// `,
+//     queryResult,
+//     r.BatchID,
+//     r.CIFNumber,
+//     r.CustomerName,
+//     r.WatchlistID,
+//     r.WatchlistSource,
+//     r.SimilarityScore,
+//     r.Status,
+//     r.ProcessDate,
+//     r.ProcessTime,
+//     r.CreatedAt,
+// )
+
+		// fmt.Print("similarity score:", r.SimilarityScore)
 
 		// pake index, bukan WatchlistID
 		if detailList, ok := detailsMap[int64(idx)]; ok {
