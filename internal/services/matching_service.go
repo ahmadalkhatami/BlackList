@@ -14,10 +14,10 @@ import (
 
 // MatchingService mengoordinasikan proses matching CIF dengan berbagai sumber watchlist.
 type MatchingService struct {
-	DB               *sql.DB
-	configService    SystemConfigInterface
-	masterNasabah    MasterNasabahInterface
-	watchlistService WatchlistServiceInterface
+	DB                   *sql.DB
+	configService        SystemConfigInterface
+	masterNasabahService MasterNasabahInterface
+	watchlistService     WatchlistServiceInterface
 }
 
 // --- Contract minimal untuk service lain agar file ini self-contained ---
@@ -51,10 +51,10 @@ func NewMatchingService(db *sql.DB) (*MatchingService, error) {
 	)
 
 	return &MatchingService{
-		DB:               db,
-		configService:    configService,
-		masterNasabah:    masterNasabahService,
-		watchlistService: watchlistService,
+		DB:                   db,
+		configService:        configService,
+		masterNasabahService: masterNasabahService,
+		watchlistService:     watchlistService,
 	}, nil
 }
 
@@ -74,7 +74,7 @@ func (s *MatchingService) RunAll() ([]models.MatchingResult, map[int64][]models.
 
 	// fmt.Printf("threshold: %s", err)
 
-	cifs, err := s.masterNasabah.Load()
+	cifs, err := s.masterNasabahService.Load()
 	if err != nil {
 		return nil, nil, fmt.Errorf("load CIF: %w", err)
 	}
@@ -442,7 +442,7 @@ func (s *MatchingService) RunForSource(source string) ([]models.MatchingResult, 
 	if err != nil {
 		return nil, nil, err
 	}
-	cifs, err := s.masterNasabah.Load()
+	cifs, err := s.masterNasabahService.Load()
 	if err != nil {
 		return nil, nil, err
 	}
