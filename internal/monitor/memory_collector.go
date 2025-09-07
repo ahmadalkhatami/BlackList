@@ -2,7 +2,6 @@ package monitor
 
 import "github.com/shirou/gopsutil/v3/mem"
 
-// MemoryCollector menghitung persentase memory yang digunakan.
 type MemoryCollector struct{}
 
 func NewMemoryCollector() *MemoryCollector {

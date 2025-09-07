@@ -38,6 +38,14 @@ func (s *MatchServiceImpl) MatchCIFWithDTTOT() error {
 	return nil
 }
 
+func (s *MatchServiceImpl) MatchCIFWithDTTOTIndividu() error {
+	return nil
+}
+
+func (s *MatchServiceImpl) MatchCIFWithDTTOTCorporate() error {
+	return nil
+}
+
 func (s *MatchServiceImpl) MatchCIFWithWMD() error {
 	return nil
 }

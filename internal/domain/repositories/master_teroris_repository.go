@@ -7,6 +7,8 @@ import (
 
 type MasterTerorisRepository interface {
 	LoadMasterTeroris() ([]models.MasterTeroris, error)
+	LoadMasterTerorisIndividu() ([]models.MasterTeroris, error)
+	LoadMasterTerorisCorporate() ([]models.MasterTeroris, error)
 }
 
 type sqlMasterTerorisRepository struct {
@@ -18,7 +20,7 @@ func NewSQLMasterTerorisRepository(db *sql.DB) MasterTerorisRepository {
 }
 
 func (r sqlMasterTerorisRepository) LoadMasterTeroris() ([]models.MasterTeroris, error) {
-	rows, err := r.DB.Query("SELECT TOP 1 [Id], [Nama], [Alias1], [Alias2], [Alias3], [Alias4], [Type], [TempatLahir], [TanggalLahir], [KTP], [NPWP], [NoPaspor], [CreatedAt], [IsActive] FROM [dbo].[MASTER_TERORIS] WHERE [IsActive] = 1;")
+	rows, err := r.DB.Query("SELECT [Id], [Nama], [Alias1], [Alias2], [Alias3], [Alias4], [Type], [TempatLahir], [TanggalLahir], [KTP], [NPWP], [NoPaspor], [CreatedAt], [IsActive] FROM [dbo].[MASTER_TERORIS] WHERE [IsActive] = 1;")
 	if err != nil {
 		return []models.MasterTeroris{}, err
 	}
@@ -50,4 +52,12 @@ func (r sqlMasterTerorisRepository) LoadMasterTeroris() ([]models.MasterTeroris,
 	}
 
 	return records, nil
+}
+
+func (r sqlMasterTerorisRepository) LoadMasterTerorisIndividu() ([]models.MasterTeroris, error) {
+	return nil, nil
+}
+
+func (r sqlMasterTerorisRepository) LoadMasterTerorisCorporate() ([]models.MasterTeroris, error) {
+	return nil, nil
 }
