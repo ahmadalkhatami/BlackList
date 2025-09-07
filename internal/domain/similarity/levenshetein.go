@@ -2,11 +2,12 @@ package similarity
 
 import "github.com/agext/levenshtein"
 
+// LevenshteinCalculator menghitung similarity berbasis Levenshtein distance.
 type LevenshteinCalculator struct {
 	MaxDistance int
 }
 
-func NewLevenstheinCalculator(maxDistance int) Calculator {
+func NewLevenshteinCalculator(maxDistance int) *LevenshteinCalculator {
 	return &LevenshteinCalculator{MaxDistance: maxDistance}
 }
 
@@ -18,7 +19,6 @@ func (c *LevenshteinCalculator) Calculate(a, b string) float64 {
 	}
 
 	maxLen := len(a)
-
 	if len(b) > maxLen {
 		maxLen = len(b)
 	}

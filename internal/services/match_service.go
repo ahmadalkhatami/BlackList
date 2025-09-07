@@ -4,7 +4,7 @@ import (
 	"errors"
 )
 
-var ErrUnknownAlgorithm = errors.New("Unknown Algorithm")
+var ErrUnknownAlgorithm = errors.New("error unknow algorithm")
 
 type MatchService interface {
 	RunMatch() error
@@ -43,5 +43,9 @@ func (s *MatchServiceImpl) MatchCIFWithWMD() error {
 }
 
 func (s *MatchServiceImpl) MatchCIFWithLocalBlacklist() error {
+	return nil
+}
+
+func calculateResult() error {
 	return nil
 }

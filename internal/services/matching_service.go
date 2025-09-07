@@ -20,9 +20,6 @@ type MatchingService struct {
 	watchlistService     WatchlistServiceInterface
 }
 
-// --- Contract minimal untuk service lain agar file ini self-contained ---
-// (Sesuaikan dengan interface yang sudah kamu punya; ini kompatibel dengan kode sebelumnya.)
-
 // NewMatchingService membangun semua dependency dari *sql.DB.
 func NewMatchingService(db *sql.DB) (*MatchingService, error) {
 	// Repositories
@@ -30,7 +27,7 @@ func NewMatchingService(db *sql.DB) (*MatchingService, error) {
 	masterMatchingConfigRepo := repositories.NewSQLMasterMatchingConfigRepository(db)
 	systemConfigRepo := repositories.NewSQLSystemConfigRepository(db)
 
-	// Services pendukung (mengikuti pola yang sudah ada di project-mu)
+	// Services pendukung
 	configService := NewConfigService(
 		WithMasterMatching(masterMatchingRepo),
 		WithMasterMatchingConfig(masterMatchingConfigRepo),
@@ -58,13 +55,12 @@ func NewMatchingService(db *sql.DB) (*MatchingService, error) {
 	}, nil
 }
 
-// RunAll melakukan matching untuk semua sumber (TERORIS, WMD, LOCAL_BLACKLIST)
+// RunAll melakukan matching untuk semua sumber
 func (s *MatchingService) RunAll() ([]models.MatchingResult, map[int64][]models.MatchingDetail, error) {
 	threshold, err := s.configService.GetThresholdFromConfig("MATCHING_THRESHOLD")
 	if err != nil {
 		return nil, nil, fmt.Errorf("get threshold: %w", err)
 	}
-
 	fmt.Printf("threshold: %f", threshold)
 
 	configsJoined, err := s.configService.GetJoinedMatchingConfig()
@@ -72,40 +68,36 @@ func (s *MatchingService) RunAll() ([]models.MatchingResult, map[int64][]models.
 		return nil, nil, fmt.Errorf("get joined matching config: %w", err)
 	}
 
-	// fmt.Printf("threshold: %s", err)
-
 	cifs, err := s.masterNasabahService.Load()
 	if err != nil {
 		return nil, nil, fmt.Errorf("load CIF: %w", err)
 	}
 
-	allWatchlists, err := s.watchlistService.LoadAllWatchlists()
+	// Load watchlists (langsung assignment, tanpa append kosong)
+	dttot, err := s.watchlistService.LoadDTTOT()
 	if err != nil {
-		return nil, nil, fmt.Errorf("load watchlists: %w", err)
+		return nil, nil, err
 	}
+	terorisList := ToWatchlistSlice(dttot)
 
-	// Split watchlists by source (aktif saja)
-	var terorisList, wmdList, localList []models.MasterWatchlist
-	for _, wl := range allWatchlists {
-		if !wl.IsActive {
-			continue
-		}
-		switch strings.ToUpper(wl.Source) {
-		case "MASTER_TERORIS":
-			terorisList = append(terorisList, wl)
-		case "MASTER_WMD":
-			wmdList = append(wmdList, wl)
-		case "MASTER_LOCAL_BLACKLIST":
-			localList = append(localList, wl)
-		}
+	wmd, err := s.watchlistService.LoadWMD()
+	if err != nil {
+		return nil, nil, err
 	}
+	wmdList := ToWatchlistSlice(wmd)
+
+	local, err := s.watchlistService.LoadLocalBlacklist() // ✅ diperbaiki
+	if err != nil {
+		return nil, nil, err
+	}
+	localList := ToWatchlistSlice(local)
 
 	// Jalankan generic matching per sumber
 	res1, det1 := genericMatch(cifs, terorisList, configsJoined, "MASTER_TERORIS", threshold)
 	res2, det2 := genericMatch(cifs, wmdList, configsJoined, "MASTER_WMD", threshold)
 	res3, det3 := genericMatch(cifs, localList, configsJoined, "MASTER_LOCAL_BLACKLIST", threshold)
 
-	// Gabungkan sekaligus reindex details agar konsisten dengan urutan results akhir
+	// Gabungkan sekaligus reindex
 	allResults := make([]models.MatchingResult, 0, len(res1)+len(res2)+len(res3))
 	allDetails := make(map[int64][]models.MatchingDetail)
 
@@ -126,9 +118,7 @@ func (s *MatchingService) RunAll() ([]models.MatchingResult, map[int64][]models.
 	return allResults, allDetails, nil
 }
 
-// genericMatch mengerjakan matching untuk 1 sumber watchlist tertentu.
-// - configsJoined: gunakan yang sudah include FieldName, FieldWeight, WatchlistSource, MatchingAlgorithm, IsActive.
-// - threshold: ambang final score.
+// genericMatch dengan worker pool
 func genericMatch(
 	cifs []models.MasterNasabah,
 	watchlists []models.MasterWatchlist,
@@ -136,15 +126,15 @@ func genericMatch(
 	source string,
 	threshold float64,
 ) ([]models.MatchingResult, map[int64][]models.MatchingDetail) {
-	results := make([]models.MatchingResult, 0)
-	detailsMap := make(map[int64][]models.MatchingDetail)
 
-	// 1) Build fieldConfig untuk source yang aktif
+	results := make([]models.MatchingResult, 0, len(cifs)) // preallocate
+	detailsMap := make(map[int64][]models.MatchingDetail, len(cifs))
+
+	// 1) Build fieldConfig
 	fieldConfig := make(map[string]models.JoinedMatchingConfig)
 	for _, cfg := range configsJoined {
 		if strings.EqualFold(cfg.WatchlistSource, source) && cfg.IsActive {
-			field := strings.ToLower(cfg.FieldName)
-			fieldConfig[field] = cfg
+			fieldConfig[strings.ToLower(cfg.FieldName)] = cfg
 		}
 	}
 	if len(fieldConfig) == 0 || len(cifs) == 0 || len(watchlists) == 0 {
@@ -155,29 +145,35 @@ func genericMatch(
 	cifValues := precomputeCIFValuesJoined(cifs, fieldConfig)
 	wlValues := precomputeWatchlistValuesJoined(watchlists, fieldConfig)
 
-	// 3) Kerjakan paralel per CIF → hasil dikirim lewat channel agar aman dari race
+	// 3) Worker pool
+	type job struct {
+		Idx int
+		CIF models.MasterNasabah
+	}
 	type resWithDetail struct {
 		Result models.MatchingResult
 		Detail []models.MatchingDetail
 	}
 
-	out := make(chan resWithDetail, 1024)
+	jobs := make(chan job, len(cifs))
+	out := make(chan resWithDetail, len(cifs))
+
+	workerCount := 10 // bisa diatur sesuai kapasitas
 	var wg sync.WaitGroup
 
-	for i, cif := range cifs {
-		ci := i
-		cifItem := cif
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for j, wl := range watchlists {
+	worker := func() {
+		defer wg.Done()
+		for j := range jobs {
+			ci := j.Idx
+			cifItem := j.CIF
+			for wi, wl := range watchlists {
 				totalWeight := 0.0
 				totalScore := 0.0
 				matched := make([]models.MatchingDetail, 0, len(fieldConfig))
 
 				for field, cfg := range fieldConfig {
 					custVal := cifValues[ci][field]
-					watchVals := wlValues[j][field]
+					watchVals := wlValues[wi][field]
 
 					maxScore := 0.0
 					best := ""
@@ -188,7 +184,6 @@ func genericMatch(
 							best = wv
 						}
 					}
-
 					totalScore += maxScore * cfg.FieldWeight
 					totalWeight += cfg.FieldWeight
 
@@ -223,15 +218,25 @@ func genericMatch(
 					}
 				}
 			}
-		}()
+		}
 	}
+
+	// jalankan workers
+	wg.Add(workerCount)
+	for w := 0; w < workerCount; w++ {
+		go worker()
+	}
+	for i, cif := range cifs {
+		jobs <- job{Idx: i, CIF: cif}
+	}
+	close(jobs)
 
 	go func() {
 		wg.Wait()
 		close(out)
 	}()
 
-	// Kumpulkan dan reindex lokal (0..n-1) untuk detailsMap
+	// collect hasil
 	idx := int64(0)
 	for item := range out {
 		results = append(results, item.Result)
@@ -240,6 +245,65 @@ func genericMatch(
 	}
 
 	return results, detailsMap
+}
+
+// InsertMatchingResults dengan transaction + prepared statement
+func InsertMatchingResults(db *sql.DB, results []models.MatchingResult, detailsMap map[int64][]models.MatchingDetail) error {
+	if len(results) == 0 {
+		return nil
+	}
+
+	queryResult := `
+		INSERT INTO MATCHING_RESULTS
+		(BatchId, CifNumber, CustomerName, WatchlistId, WatchlistSource, SimilarityScore, Status, ProcessDate, ProcessTime, CreatedAt)
+		OUTPUT INSERTED.Id
+		VALUES (@p1, @p2, @p3, @p4, @p5, @p6, @p7, @p8, @p9, @p10)
+	`
+	queryDetail := `
+		INSERT INTO MATCHING_DETAILS
+		(MatchingResultId, FieldName, CustomerValue, WatchlistValue, FieldScore, FieldWeight, AlgorithmUsed)
+		VALUES (@p1, @p2, @p3, @p4, @p5, @p6, @p7)
+	`
+
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	stmtRes, err := tx.Prepare(queryResult)
+	if err != nil {
+		return err
+	}
+	defer stmtRes.Close()
+
+	stmtDet, err := tx.Prepare(queryDetail)
+	if err != nil {
+		return err
+	}
+	defer stmtDet.Close()
+
+	for idx, r := range results {
+		var insertedID int64
+		err := stmtRes.QueryRow(
+			r.BatchID, r.CIFNumber, r.CustomerName, r.WatchlistID, r.WatchlistSource,
+			r.SimilarityScore, r.Status, r.ProcessDate, r.ProcessTime, r.CreatedAt,
+		).Scan(&insertedID)
+		if err != nil {
+			return fmt.Errorf("insert MATCHING_RESULTS gagal: %w", err)
+		}
+
+		if detailList, ok := detailsMap[int64(idx)]; ok {
+			for _, d := range detailList {
+				_, err := stmtDet.Exec(insertedID, d.FieldName, d.CustomerValue, d.WatchlistValue, d.FieldScore, d.FieldWeight, d.AlgorithmUsed)
+				if err != nil {
+					return fmt.Errorf("insert MATCHING_DETAILS gagal: %w", err)
+				}
+			}
+		}
+	}
+
+	return tx.Commit()
 }
 
 // ===== PRECOMPUTE (versi JoinedMatchingConfig) =====
@@ -365,62 +429,6 @@ func matchScore(a, b, algorithm string) float64 {
 	default:
 		return levenshtein.Similarity(a, b, nil)
 	}
-}
-
-// ===== INSERT RESULT & DETAIL (dipertahankan, dengan minor perapian) =====
-func InsertMatchingResults(db *sql.DB, results []models.MatchingResult, detailsMap map[int64][]models.MatchingDetail) error {
-	if len(results) == 0 {
-		return nil
-	}
-
-	queryResult := `
-        INSERT INTO MATCHING_RESULTS 
-        (BatchId, CifNumber, CustomerName, WatchlistId, WatchlistSource, SimilarityScore, Status, ProcessDate, ProcessTime, CreatedAt)
-        OUTPUT INSERTED.Id
-        VALUES (@p1, @p2, @p3, @p4, @p5, @p6, @p7, @p8, @p9, @p10)
-    `
-	queryDetail := `
-        INSERT INTO MATCHING_DETAILS 
-        (MatchingResultId, FieldName, CustomerValue, WatchlistValue, FieldScore, FieldWeight, AlgorithmUsed)
-        VALUES (@p1, @p2, @p3, @p4, @p5, @p6, @p7)
-    `
-
-	for idx, r := range results {
-		var insertedID int64
-		err := db.QueryRow(queryResult,
-			r.BatchID,
-			r.CIFNumber,
-			r.CustomerName,
-			r.WatchlistID,
-			r.WatchlistSource,
-			r.SimilarityScore,
-			r.Status,
-			r.ProcessDate,
-			r.ProcessTime,
-			r.CreatedAt,
-		).Scan(&insertedID)
-		if err != nil {
-			return fmt.Errorf("insert MATCHING_RESULTS gagal: %w", err)
-		}
-
-		if detailList, ok := detailsMap[int64(idx)]; ok {
-			for _, d := range detailList {
-				_, err := db.Exec(queryDetail,
-					insertedID,
-					d.FieldName,
-					d.CustomerValue,
-					d.WatchlistValue,
-					d.FieldScore,
-					d.FieldWeight,
-					d.AlgorithmUsed,
-				)
-				if err != nil {
-					return fmt.Errorf("insert MATCHING_DETAILS gagal: %w", err)
-				}
-			}
-		}
-	}
-	return nil
 }
 
 func GetNextBatchID(db *sql.DB) (int64, error) {

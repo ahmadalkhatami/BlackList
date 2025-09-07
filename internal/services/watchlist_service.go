@@ -67,9 +67,7 @@ func (w *WatchlistServiceImpl) LoadAllWatchlists() ([]models.MasterWatchlist, er
 		if err != nil {
 			return nil, err
 		}
-		for i := range dttot {
-			combined = append(combined, ToWatchlist(&dttot[i]))
-		}
+		combined = append(combined, ToWatchlistSlice(dttot)...)
 	}
 
 	if w.MasterWMD != nil {
@@ -77,9 +75,7 @@ func (w *WatchlistServiceImpl) LoadAllWatchlists() ([]models.MasterWatchlist, er
 		if err != nil {
 			return nil, err
 		}
-		for i := range wmd {
-			combined = append(combined, ToWatchlist(&wmd[i]))
-		}
+		combined = append(combined, ToWatchlistSlice(wmd)...)
 	}
 
 	if w.MasterLocalblacklist != nil {
@@ -87,9 +83,7 @@ func (w *WatchlistServiceImpl) LoadAllWatchlists() ([]models.MasterWatchlist, er
 		if err != nil {
 			return nil, err
 		}
-		for i := range local {
-			combined = append(combined, ToWatchlist(&local[i]))
-		}
+		combined = append(combined, ToWatchlistSlice(local)...)
 	}
 
 	return combined, nil
@@ -106,8 +100,18 @@ func ToWatchlist(item models.Watchlistable) models.MasterWatchlist {
 		NPWP:         item.GetNPWP(),
 		NoPaspor:     item.GetNoPaspor(),
 		Source:       item.GetSource(),
-		Type: 	   	  item.GetType(),
+		Type:         item.GetType(),
 		CreatedAt:    item.GetCreatedAt(),
 		IsActive:     item.GetIsActive(),
 	}
+}
+
+func ToWatchlistSlice[T any](items []T) []models.MasterWatchlist {
+	result := make([]models.MasterWatchlist, 0, len(items))
+	for i := range items {
+		if wl, ok := any(&items[i]).(models.Watchlistable); ok {
+			result = append(result, ToWatchlist(wl))
+		}
+	}
+	return result
 }
