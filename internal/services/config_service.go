@@ -57,43 +57,8 @@ func (s *SystemConfigImpl) GetSystemConfig(cfgKey string) (models.SystemConfig, 
 	return record, nil
 }
 
-/**
 func (s *SystemConfigImpl) GetJoinedMatchingConfig() ([]models.JoinedMatchingConfig, error) {
 
-	matchingList, err := s.MasterMatching.LoadMasterMatching()
-	if err != nil {
-		return nil, err
-	}
-
-	configList, err := s.MasterMatchingConfig.LoadMasterMatchingConfig()
-	if err != nil {
-		return nil, err
-	}
-
-	var result []models.JoinedMatchingConfig
-
-	for _, m := range matchingList {
-		for _, c := range configList {
-			if m.Id == c.MatchingId {
-				result = append(result, models.JoinedMatchingConfig{
-					Id:                c.Id,
-					MatchingId:        c.MatchingId,
-					FieldName:         c.FieldName,
-					FieldWeight:       c.FieldWeight,
-					WatchlistSource:   m.WatchlistSource,
-					Type:              m.Type,
-					MatchingAlgorithm: c.MatchingAlgorithm,
-					IsActive:          c.IsActive && m.IsActive,
-				})
-			}
-		}
-	}
-
-	return result, nil
-}*/
-
-func (s *SystemConfigImpl) GetJoinedMatchingConfig() ([]models.JoinedMatchingConfig, error) {
-	// Ambil data
 	configList, err := s.MasterMatchingConfig.LoadMasterMatchingConfig()
 	if err != nil {
 		return nil, err
@@ -104,13 +69,12 @@ func (s *SystemConfigImpl) GetJoinedMatchingConfig() ([]models.JoinedMatchingCon
 		return nil, err
 	}
 
-	// Buat map untuk lookup cepat
 	matchingMap := make(map[string]models.MasterMatching, len(matchingList))
 	for _, m := range matchingList {
 		matchingMap[m.Id] = m
 	}
 
-	// Gunakan generic MapSlice2
+	// generic MapSlice2
 	result := utils.MapSlice2(
 		configList,
 		matchingMap,
