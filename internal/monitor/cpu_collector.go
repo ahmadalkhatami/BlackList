@@ -6,7 +6,6 @@ import (
 	"github.com/shirou/gopsutil/v3/cpu"
 )
 
-// CPUCollector menghitung persentase CPU usage.
 type CPUCollector struct {
 	interval time.Duration
 }
