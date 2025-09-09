@@ -13,6 +13,8 @@ type SystemConfigInterface interface {
 	Get(cfgKey string) (models.SystemConfig, error)
 	GetJoinedMatchingConfig() ([]models.JoinedMatchingConfig, error)
 	GetThreshold(cfgKey string) (float64, error)
+	LoadIndividu() ([]models.JoinedMatchingConfig, error)
+	LoadCorporate() ([]models.JoinedMatchingConfig, error)
 }
 
 type SystemConfigImpl struct {
@@ -55,6 +57,62 @@ func (s *SystemConfigImpl) Get(cfgKey string) (models.SystemConfig, error) {
 		return models.SystemConfig{}, err
 	}
 	return record, nil
+}
+
+func (s *SystemConfigImpl) LoadIndividu() ([]models.JoinedMatchingConfig, error) {
+
+	configList, err := s.MasterMatchingConfig.Load()
+	if err != nil {
+		return nil, err
+	}
+
+	matchingList, err := s.MasterMatching.LoadIndividu()
+	if err != nil {
+		return nil, err
+	}
+
+	matchingMap := make(map[string]models.MasterMatching, len(matchingList))
+	for _, m := range matchingList {
+		matchingMap[m.Id] = m
+	}
+
+	// generic MapSlice2
+	result := utils.MapSlice2(
+		configList,
+		matchingMap,
+		func(c models.MasterMatchingConfig) string { return c.MatchingId },
+		MapConfigAndMatching,
+	)
+
+	return result, nil
+}
+
+func (s *SystemConfigImpl) LoadCorporate() ([]models.JoinedMatchingConfig, error) {
+
+	configList, err := s.MasterMatchingConfig.Load()
+	if err != nil {
+		return nil, err
+	}
+
+	matchingList, err := s.MasterMatching.LoadCorporate()
+	if err != nil {
+		return nil, err
+	}
+
+	matchingMap := make(map[string]models.MasterMatching, len(matchingList))
+	for _, m := range matchingList {
+		matchingMap[m.Id] = m
+	}
+
+	// generic MapSlice2
+	result := utils.MapSlice2(
+		configList,
+		matchingMap,
+		func(c models.MasterMatchingConfig) string { return c.MatchingId },
+		MapConfigAndMatching,
+	)
+
+	return result, nil
 }
 
 func (s *SystemConfigImpl) GetJoinedMatchingConfig() ([]models.JoinedMatchingConfig, error) {

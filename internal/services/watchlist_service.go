@@ -10,6 +10,12 @@ type WatchlistServiceInterface interface {
 	LoadDTTOT() ([]models.MasterTeroris, error)
 	LoadWMD() ([]models.MasterWMD, error)
 	LoadLocalBlacklist() ([]models.MasterLocalBlacklist, error)
+	LoadDTTOTIndividu() ([]models.MasterWatchlist, error)
+	LoadWMDIndividu() ([]models.MasterWatchlist, error)
+	LoadLocalBlacklistIndividu() ([]models.MasterWatchlist, error)
+	LoadDTTOTCorporate() ([]models.MasterWatchlist, error)
+	LoadWMDCorporate() ([]models.MasterWatchlist, error)
+	LoadLocalBlacklistCorporate() ([]models.MasterWatchlist, error)
 	LoadAllWatchlists() ([]models.MasterWatchlist, error)
 }
 
@@ -57,6 +63,78 @@ func (w *WatchlistServiceImpl) LoadWMD() ([]models.MasterWMD, error) {
 
 func (w *WatchlistServiceImpl) LoadLocalBlacklist() ([]models.MasterLocalBlacklist, error) {
 	return w.MasterLocalblacklist.Load()
+}
+
+func (w *WatchlistServiceImpl) LoadDTTOTIndividu() ([]models.MasterWatchlist, error) {
+	var results []models.MasterWatchlist
+	if w.MasterDTTOT != nil {
+		dttot, err := w.MasterDTTOT.LoadIndividu()
+		if err != nil {
+			return []models.MasterWatchlist{}, err
+		}
+		results = append(results, ToWatchlistSlice(dttot)...)
+	}
+	return results, nil
+}
+
+func (w *WatchlistServiceImpl) LoadWMDIndividu() ([]models.MasterWatchlist, error) {
+	var results []models.MasterWatchlist
+	if w.MasterWMD != nil {
+		list, err := w.MasterWMD.LoadIndividu()
+		if err != nil {
+			return []models.MasterWatchlist{}, err
+		}
+		results = append(results, ToWatchlistSlice(list)...)
+	}
+	return results, nil
+}
+
+func (w *WatchlistServiceImpl) LoadLocalBlacklistIndividu() ([]models.MasterWatchlist, error) {
+	var results []models.MasterWatchlist
+	if w.MasterLocalblacklist != nil {
+		list, err := w.MasterLocalblacklist.LoadIndividu()
+		if err != nil {
+			return []models.MasterWatchlist{}, err
+		}
+		results = append(results, ToWatchlistSlice(list)...)
+	}
+	return results, nil
+}
+
+func (w *WatchlistServiceImpl) LoadDTTOTCorporate() ([]models.MasterWatchlist, error) {
+	var results []models.MasterWatchlist
+	if w.MasterDTTOT != nil {
+		list, err := w.MasterDTTOT.LoadCorporate()
+		if err != nil {
+			return []models.MasterWatchlist{}, err
+		}
+		results = append(results, ToWatchlistSlice(list)...)
+	}
+	return results, nil
+}
+
+func (w *WatchlistServiceImpl) LoadWMDCorporate() ([]models.MasterWatchlist, error) {
+	var results []models.MasterWatchlist
+	if w.MasterWMD != nil {
+		list, err := w.MasterWMD.LoadCorporate()
+		if err != nil {
+			return []models.MasterWatchlist{}, err
+		}
+		results = append(results, ToWatchlistSlice(list)...)
+	}
+	return results, nil
+}
+
+func (w *WatchlistServiceImpl) LoadLocalBlacklistCorporate() ([]models.MasterWatchlist, error) {
+	var results []models.MasterWatchlist
+	if w.MasterLocalblacklist != nil {
+		list, err := w.MasterLocalblacklist.LoadCorporate()
+		if err != nil {
+			return []models.MasterWatchlist{}, err
+		}
+		results = append(results, ToWatchlistSlice(list)...)
+	}
+	return results, nil
 }
 
 func (w *WatchlistServiceImpl) LoadAllWatchlists() ([]models.MasterWatchlist, error) {

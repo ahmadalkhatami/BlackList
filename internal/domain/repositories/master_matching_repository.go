@@ -7,6 +7,8 @@ import (
 
 type MasterMatchingRepository interface {
 	Load() ([]models.MasterMatching, error)
+	LoadIndividu() ([]models.MasterMatching, error)
+	LoadCorporate() ([]models.MasterMatching, error)
 }
 
 type sqlMasterMatchingRepository struct {
@@ -20,6 +22,45 @@ func NewSQLMasterMatchingRepository(db *sql.DB) MasterMatchingRepository {
 func (r sqlMasterMatchingRepository) Load() ([]models.MasterMatching, error) {
 	// rows, err := r.DB.Query("SELECT [Id] ,[Name] ,[WatchlistSource] ,[IsIndividual] ,[Description] ,[IsActive] FROM [dbo].[MASTER_MATCHING] WHERE [IsActive] = 1;")
 	rows, err := r.DB.Query("SELECT [Id], [WatchlistSource], [IsIndividual], [IsActive] FROM [dbo].[MASTER_MATCHING] WHERE [IsActive] = 1;")
+	if err != nil {
+		return []models.MasterMatching{}, err
+	}
+
+	defer rows.Close()
+
+	var records []models.MasterMatching
+	for rows.Next() {
+		var rec models.MasterMatching
+		if err := rows.Scan(&rec.Id, &rec.WatchlistSource, &rec.Type, &rec.IsActive); err != nil {
+			return nil, err
+		}
+		records = append(records, rec)
+	}
+
+	return records, nil
+}
+
+func (r sqlMasterMatchingRepository) LoadIndividu() ([]models.MasterMatching, error) {
+	rows, err := r.DB.Query("SELECT [Id], [WatchlistSource], [IsIndividual], [IsActive] FROM [dbo].[MASTER_MATCHING] WHERE [IsActive] = 1 AND [IsIndividual] = 1;")
+	if err != nil {
+		return []models.MasterMatching{}, err
+	}
+
+	defer rows.Close()
+
+	var records []models.MasterMatching
+	for rows.Next() {
+		var rec models.MasterMatching
+		if err := rows.Scan(&rec.Id, &rec.WatchlistSource, &rec.Type, &rec.IsActive); err != nil {
+			return nil, err
+		}
+		records = append(records, rec)
+	}
+
+	return records, nil
+}
+func (r sqlMasterMatchingRepository) LoadCorporate() ([]models.MasterMatching, error) {
+	rows, err := r.DB.Query("SELECT [Id], [WatchlistSource], [IsIndividual], [IsActive] FROM [dbo].[MASTER_MATCHING] WHERE [IsActive] = 1 AND [IsIndividual] = 0;")
 	if err != nil {
 		return []models.MasterMatching{}, err
 	}

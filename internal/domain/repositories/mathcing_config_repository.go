@@ -7,8 +7,6 @@ import (
 
 type MasterMatchingConfigRepository interface {
 	Load() ([]models.MasterMatchingConfig, error)
-	LoadIndividu() ([]models.MasterMatchingConfig, error)
-	LoadCorporate() ([]models.MasterMatchingConfig, error)
 }
 
 type sqlMasterMatchingConfigRepository struct {
@@ -43,11 +41,4 @@ func (r sqlMasterMatchingConfigRepository) Load() ([]models.MasterMatchingConfig
 	}
 
 	return records, nil
-}
-
-func (r sqlMasterMatchingConfigRepository) LoadIndividu() ([]models.MasterMatchingConfig, error) {
-	return nil, nil
-}
-func (r sqlMasterMatchingConfigRepository) LoadCorporate() ([]models.MasterMatchingConfig, error) {
-	return nil, nil
 }
