@@ -14,20 +14,30 @@ type MatchService interface {
 }
 
 type MatchServiceImpl struct {
-	NumWorker int
+	NumWorker   int
+	FieldWeight float64
 }
 
 type MatchServiceOption func(*MatchServiceImpl)
 
-func NewMatchService(numWorker int) MatchService {
-
-	if numWorker < 1 {
-		numWorker = 1
+func WithNumOfWorker(nw int) MatchServiceOption {
+	return func(msi *MatchServiceImpl) {
+		msi.NumWorker = nw
 	}
+}
 
-	return &MatchServiceImpl{
-		NumWorker: numWorker,
+func WithFieldWeight(fw float64) MatchServiceOption {
+	return func(msi *MatchServiceImpl) {
+		msi.FieldWeight = fw
 	}
+}
+
+func NewMatchService(opts ...MatchServiceOption) MatchService {
+	svc := &MatchServiceImpl{}
+	for _, opt := range opts {
+		opt(svc)
+	}
+	return svc
 }
 
 func (s *MatchServiceImpl) RunMatch() error {
@@ -54,6 +64,6 @@ func (s *MatchServiceImpl) MatchCIFWithLocalBlacklist() error {
 	return nil
 }
 
-func calculateResult() error {
-	return nil
+func (s *MatchServiceImpl) CalculateResult() (*float64, error) {
+	return nil, nil
 }

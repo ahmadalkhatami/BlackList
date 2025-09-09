@@ -57,7 +57,7 @@ func NewMatchingService(db *sql.DB) (*MatchingService, error) {
 
 // RunAll melakukan matching untuk semua sumber
 func (s *MatchingService) RunAll() ([]models.MatchingResult, map[int64][]models.MatchingDetail, error) {
-	threshold, err := s.configService.GetThresholdFromConfig("MATCHING_THRESHOLD")
+	threshold, err := s.configService.GetThreshold("MATCHING_THRESHOLD")
 	if err != nil {
 		return nil, nil, fmt.Errorf("get threshold: %w", err)
 	}
@@ -442,7 +442,7 @@ func GetNextBatchID(db *sql.DB) (int64, error) {
 
 // ===== Helper untuk quick-run satu sumber tertentu jika dibutuhkan =====
 func (s *MatchingService) RunForSource(source string) ([]models.MatchingResult, map[int64][]models.MatchingDetail, error) {
-	threshold, err := s.configService.GetThresholdFromConfig("MATCHING_THRESHOLD")
+	threshold, err := s.configService.GetThreshold("MATCHING_THRESHOLD")
 	if err != nil {
 		return nil, nil, err
 	}

@@ -8,9 +8,9 @@ import (
 )
 
 type MatchingResultRepository interface {
-	LoadMatchingResult(query *string) ([]models.MatchingResult, error)
-	SaveMatchingResult(results []models.MatchingResult) error
-	SaveMatchingResultBatch(batchID string, results []models.MatchingResult) error
+	Load(query *string) ([]models.MatchingResult, error)
+	Save(results []models.MatchingResult) error
+	SaveBatch(batchID string, results []models.MatchingResult) error
 }
 
 type sqlMatchingResultRepository struct {
@@ -21,7 +21,7 @@ func NewSQLMatchingResultRepository(db *sql.DB) MatchingResultRepository {
 	return &sqlMatchingResultRepository{DB: db}
 }
 
-func (r sqlMatchingResultRepository) LoadMatchingResult(query *string) ([]models.MatchingResult, error) {
+func (r sqlMatchingResultRepository) Load(query *string) ([]models.MatchingResult, error) {
 
 	defaultQuery := "SELECT [Id], [MatchingResultId], [FieldName], [CustomerValue], [WatchlistValue], [FieldScore], [FieldWeight], [AlgorithmUsed] FROM [dbo].[MATCHING_DETAILS]"
 
@@ -59,7 +59,7 @@ func (r sqlMatchingResultRepository) LoadMatchingResult(query *string) ([]models
 	return records, nil
 }
 
-func (r *sqlMatchingResultRepository) SaveMatchingResult(results []models.MatchingResult) error {
+func (r *sqlMatchingResultRepository) Save(results []models.MatchingResult) error {
 	trx, err := r.DB.Begin()
 	if err != nil {
 		return err
@@ -112,7 +112,7 @@ func (r *sqlMatchingResultRepository) SaveMatchingResult(results []models.Matchi
 	return trx.Commit()
 }
 
-func (r *sqlMatchingResultRepository) SaveMatchingResultBatch(batchID string, results []models.MatchingResult) error {
+func (r *sqlMatchingResultRepository) SaveBatch(batchID string, results []models.MatchingResult) error {
 	if len(results) == 0 {
 		return nil
 	}

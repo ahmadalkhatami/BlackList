@@ -6,9 +6,9 @@ import (
 )
 
 type MasterMatchingConfigRepository interface {
-	LoadMasterMatchingConfig() ([]models.MasterMatchingConfig, error)
-	LoadMasterMatchingConfigIndividu() ([]models.MasterMatchingConfig, error)
-	LoadMasterMatchingConfigCorporate() ([]models.MasterMatchingConfig, error)
+	Load() ([]models.MasterMatchingConfig, error)
+	LoadIndividu() ([]models.MasterMatchingConfig, error)
+	LoadCorporate() ([]models.MasterMatchingConfig, error)
 }
 
 type sqlMasterMatchingConfigRepository struct {
@@ -19,7 +19,7 @@ func NewSQLMasterMatchingConfigRepository(db *sql.DB) MasterMatchingConfigReposi
 	return &sqlMasterMatchingConfigRepository{DB: db}
 }
 
-func (r sqlMasterMatchingConfigRepository) LoadMasterMatchingConfig() ([]models.MasterMatchingConfig, error) {
+func (r sqlMasterMatchingConfigRepository) Load() ([]models.MasterMatchingConfig, error) {
 	rows, err := r.DB.Query("SELECT [Id], [MatchingId], [FieldName], [FieldWeight], [MatchingAlgorithm], [IsActive] FROM [dbo].[MASTER_MATCHING_CONFIG] WHERE [IsActive] = 1;")
 	if err != nil {
 		return []models.MasterMatchingConfig{}, err
@@ -45,9 +45,9 @@ func (r sqlMasterMatchingConfigRepository) LoadMasterMatchingConfig() ([]models.
 	return records, nil
 }
 
-func (r sqlMasterMatchingConfigRepository) LoadMasterMatchingConfigIndividu() ([]models.MasterMatchingConfig, error) {
+func (r sqlMasterMatchingConfigRepository) LoadIndividu() ([]models.MasterMatchingConfig, error) {
 	return nil, nil
 }
-func (r sqlMasterMatchingConfigRepository) LoadMasterMatchingConfigCorporate() ([]models.MasterMatchingConfig, error) {
+func (r sqlMasterMatchingConfigRepository) LoadCorporate() ([]models.MasterMatchingConfig, error) {
 	return nil, nil
 }

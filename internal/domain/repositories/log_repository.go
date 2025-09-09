@@ -8,8 +8,8 @@ import (
 )
 
 type ProcessLogRepository interface {
-	LoadProcessLog() ([]models.ProcessingLog, error)
-	SaveErrorProcessLog(processLog []models.ProcessingLog) error
+	Load() ([]models.ProcessingLog, error)
+	Save(processLog []models.ProcessingLog) error
 }
 
 type sqlProcessLogRepository struct {
@@ -20,11 +20,11 @@ func NewSQLProcessLogRepository(db *sql.DB) ProcessLogRepository {
 	return &sqlProcessLogRepository{DB: db}
 }
 
-func (r sqlProcessLogRepository) LoadProcessLog() ([]models.ProcessingLog, error) {
+func (r sqlProcessLogRepository) Load() ([]models.ProcessingLog, error) {
 	return nil, nil
 }
 
-func (r sqlProcessLogRepository) SaveErrorProcessLog(processLog []models.ProcessingLog) error {
+func (r sqlProcessLogRepository) Save(processLog []models.ProcessingLog) error {
 	if len(processLog) == 0 {
 		return nil
 	}

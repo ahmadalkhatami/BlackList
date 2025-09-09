@@ -6,7 +6,7 @@ import (
 )
 
 type SystemConfigRepository interface {
-	LoadSystemConfig(cfgKey string) (models.SystemConfig, error)
+	Load(cfgKey string) (models.SystemConfig, error)
 }
 
 type sqlSystemConfigRepository struct {
@@ -17,7 +17,7 @@ func NewSQLSystemConfigRepository(db *sql.DB) SystemConfigRepository {
 	return &sqlSystemConfigRepository{DB: db}
 }
 
-func (r sqlSystemConfigRepository) LoadSystemConfig(cfgKey string) (models.SystemConfig, error) {
+func (r sqlSystemConfigRepository) Load(cfgKey string) (models.SystemConfig, error) {
 
 	var rec models.SystemConfig
 

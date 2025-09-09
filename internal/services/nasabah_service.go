@@ -21,7 +21,7 @@ func NewMasterNasabah(masterNasabah repositories.MasterNasabahRepository) Master
 
 func (m *MasterNasabahImpl) Load() ([]models.MasterNasabah, error) {
 
-	result, err := m.MasterNasabah.LoadMasterNasabah()
+	result, err := m.MasterNasabah.Load()
 	if err != nil {
 		return []models.MasterNasabah{}, err
 	}

@@ -48,22 +48,22 @@ func NewWatchlistService(opts ...WatchlistOption) WatchlistServiceInterface {
 }
 
 func (w *WatchlistServiceImpl) LoadDTTOT() ([]models.MasterTeroris, error) {
-	return w.MasterDTTOT.LoadMasterTeroris()
+	return w.MasterDTTOT.Load()
 }
 
 func (w *WatchlistServiceImpl) LoadWMD() ([]models.MasterWMD, error) {
-	return w.MasterWMD.LoadMasterWMD()
+	return w.MasterWMD.Load()
 }
 
 func (w *WatchlistServiceImpl) LoadLocalBlacklist() ([]models.MasterLocalBlacklist, error) {
-	return w.MasterLocalblacklist.LoadMasterLocalBlacklist()
+	return w.MasterLocalblacklist.Load()
 }
 
 func (w *WatchlistServiceImpl) LoadAllWatchlists() ([]models.MasterWatchlist, error) {
 	var combined []models.MasterWatchlist
 
 	if w.MasterDTTOT != nil {
-		dttot, err := w.MasterDTTOT.LoadMasterTeroris()
+		dttot, err := w.MasterDTTOT.Load()
 		if err != nil {
 			return nil, err
 		}
@@ -71,7 +71,7 @@ func (w *WatchlistServiceImpl) LoadAllWatchlists() ([]models.MasterWatchlist, er
 	}
 
 	if w.MasterWMD != nil {
-		wmd, err := w.MasterWMD.LoadMasterWMD()
+		wmd, err := w.MasterWMD.Load()
 		if err != nil {
 			return nil, err
 		}
@@ -79,7 +79,7 @@ func (w *WatchlistServiceImpl) LoadAllWatchlists() ([]models.MasterWatchlist, er
 	}
 
 	if w.MasterLocalblacklist != nil {
-		local, err := w.MasterLocalblacklist.LoadMasterLocalBlacklist()
+		local, err := w.MasterLocalblacklist.Load()
 		if err != nil {
 			return nil, err
 		}

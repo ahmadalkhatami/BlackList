@@ -6,9 +6,9 @@ import (
 )
 
 type MatchingDetailsRepository interface {
-	LoadMatchingDetails(query string) ([]models.MatchingDetail, error)
-	SaveMatchingDetails(details []models.MatchingDetail) error
-	SaveMatchingDetailsBatch(batchID string, details []models.MatchingDetail) error
+	Load(query string) ([]models.MatchingDetail, error)
+	Save(details []models.MatchingDetail) error
+	SaveBatch(batchID string, details []models.MatchingDetail) error
 }
 
 type sqlMatchingDetailsRepository struct {
@@ -19,7 +19,7 @@ func NewSQLMatchingDetailsRepository(db *sql.DB) MatchingDetailsRepository {
 	return &sqlMatchingDetailsRepository{DB: db}
 }
 
-func (r sqlMatchingDetailsRepository) LoadMatchingDetails(query string) ([]models.MatchingDetail, error) {
+func (r sqlMatchingDetailsRepository) Load(query string) ([]models.MatchingDetail, error) {
 	rows, err := r.DB.Query(query)
 	if err != nil {
 		return []models.MatchingDetail{}, err
@@ -46,7 +46,7 @@ func (r sqlMatchingDetailsRepository) LoadMatchingDetails(query string) ([]model
 	return records, nil
 }
 
-func (r sqlMatchingDetailsRepository) SaveMatchingDetails(details []models.MatchingDetail) error {
+func (r sqlMatchingDetailsRepository) Save(details []models.MatchingDetail) error {
 	tx, err := r.DB.Begin()
 	if err != nil {
 		return err
@@ -77,7 +77,7 @@ func (r sqlMatchingDetailsRepository) SaveMatchingDetails(details []models.Match
 	return tx.Commit()
 }
 
-func (r sqlMatchingDetailsRepository) SaveMatchingDetailsBatch(batchID string, details []models.MatchingDetail) error {
+func (r sqlMatchingDetailsRepository) SaveBatch(batchID string, details []models.MatchingDetail) error {
 	tx, err := r.DB.Begin()
 	if err != nil {
 		return err

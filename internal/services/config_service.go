@@ -10,9 +10,9 @@ import (
 const defaultThreshold = 1
 
 type SystemConfigInterface interface {
-	GetSystemConfig(cfgKey string) (models.SystemConfig, error)
+	Get(cfgKey string) (models.SystemConfig, error)
 	GetJoinedMatchingConfig() ([]models.JoinedMatchingConfig, error)
-	GetThresholdFromConfig(cfgKey string) (float64, error)
+	GetThreshold(cfgKey string) (float64, error)
 }
 
 type SystemConfigImpl struct {
@@ -49,8 +49,8 @@ func NewConfigService(opts ...ConfigOption) SystemConfigInterface {
 	return svc
 }
 
-func (s *SystemConfigImpl) GetSystemConfig(cfgKey string) (models.SystemConfig, error) {
-	record, err := s.SystemConfig.LoadSystemConfig(cfgKey)
+func (s *SystemConfigImpl) Get(cfgKey string) (models.SystemConfig, error) {
+	record, err := s.SystemConfig.Load(cfgKey)
 	if err != nil {
 		return models.SystemConfig{}, err
 	}
@@ -59,12 +59,12 @@ func (s *SystemConfigImpl) GetSystemConfig(cfgKey string) (models.SystemConfig, 
 
 func (s *SystemConfigImpl) GetJoinedMatchingConfig() ([]models.JoinedMatchingConfig, error) {
 
-	configList, err := s.MasterMatchingConfig.LoadMasterMatchingConfig()
+	configList, err := s.MasterMatchingConfig.Load()
 	if err != nil {
 		return nil, err
 	}
 
-	matchingList, err := s.MasterMatching.LoadMasterMatching()
+	matchingList, err := s.MasterMatching.Load()
 	if err != nil {
 		return nil, err
 	}
@@ -98,8 +98,8 @@ func MapConfigAndMatching(c models.MasterMatchingConfig, m models.MasterMatching
 	}
 }
 
-func (s *SystemConfigImpl) GetThresholdFromConfig(cfgKey string) (float64, error) {
-	cfg, err := s.GetSystemConfig(cfgKey)
+func (s *SystemConfigImpl) GetThreshold(cfgKey string) (float64, error) {
+	cfg, err := s.Get(cfgKey)
 	if err != nil || cfg.ConfigKey == "" {
 		return defaultThreshold, nil
 	}

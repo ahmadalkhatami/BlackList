@@ -6,7 +6,7 @@ import (
 )
 
 type MasterNasabahRepository interface {
-	LoadMasterNasabah() ([]models.MasterNasabah, error)
+	Load() ([]models.MasterNasabah, error)
 }
 
 type sqlMasterNasabahRepository struct {
@@ -17,7 +17,7 @@ func NewSQLMasterNasabahRepository(db *sql.DB) MasterNasabahRepository {
 	return &sqlMasterNasabahRepository{DB: db}
 }
 
-func (r sqlMasterNasabahRepository) LoadMasterNasabah() ([]models.MasterNasabah, error) {
+func (r sqlMasterNasabahRepository) Load() ([]models.MasterNasabah, error) {
 	rows, err := r.DB.Query("SELECT [Id], [CIFNumber], [NamaNasabah], [TempatLahir], [TanggalLahir], [KTP], [NPWP], [NoPaspor], [StatusNasabah], [CreatedAt] FROM [dbo].[MASTER_NASABAH] WHERE StatusNasabah = 'ACTIVE';")
 	if err != nil {
 		return []models.MasterNasabah{}, err
