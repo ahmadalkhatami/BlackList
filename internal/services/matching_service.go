@@ -167,6 +167,50 @@ func genericMatch(
 			ci := j.Idx
 			cifItem := j.CIF
 			for wi, wl := range watchlists {
+				//Matching name only jika Typenya korporasi
+				if strings.EqualFold(wl.Type, "CORPORATE") {
+					// hanya bandingkan nama
+					if cfg, ok := fieldConfig["nama"]; ok {
+						custVal := cifValues[ci]["nama"]
+						watchVals := wlValues[wi]["nama"]
+
+						maxScore := 0.0
+						best := ""
+						for _, wv := range watchVals {
+							s := matchScore(custVal, wv, cfg.MatchingAlgorithm)
+							if s > maxScore {
+								maxScore = s
+								best = wv
+							}
+						}
+
+						if maxScore >= threshold { // langsung cek threshold
+							out <- resWithDetail{
+								Result: models.MatchingResult{
+									CIFNumber:       cifItem.CIFNumber,
+									CustomerName:    cifItem.NamaNasabah,
+									WatchlistID:     wl.ID,
+									WatchlistSource: source,
+									SimilarityScore: maxScore,
+									Status:          "SUCCESS",
+									ProcessDate:     time.Now(),
+									ProcessTime:     time.Now(),
+									CreatedAt:       time.Now(),
+								},
+								Detail: []models.MatchingDetail{{
+									FieldName:      "nama",
+									CustomerValue:  custVal,
+									WatchlistValue: best,
+									FieldScore:     maxScore,
+									FieldWeight:    cfg.FieldWeight,
+									AlgorithmUsed:  cfg.MatchingAlgorithm,
+								}},
+							}
+						}
+					}
+					continue // skip ke wl berikutnya
+				}
+				
 				totalWeight := 0.0
 				totalScore := 0.0
 				matched := make([]models.MatchingDetail, 0, len(fieldConfig))
