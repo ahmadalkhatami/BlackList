@@ -2,15 +2,16 @@ package repositories
 
 import (
 	"BlackListWorker/internal/domain/models"
+	"context"
 	"database/sql"
 
 	mssql "github.com/denisenkom/go-mssqldb"
 )
 
 type MatchingResultRepository interface {
-	Load(query *string) ([]models.MatchingResult, error)
-	Save(results []models.MatchingResult) error
-	SaveBatch(batchID string, results []models.MatchingResult) error
+	Load(ctx context.Context, query *string) ([]models.MatchingResult, error)
+	Save(ctx context.Context, results []models.MatchingResult) error
+	SaveBatch(ctx context.Context, batchID string, results []models.MatchingResult) error
 }
 
 type sqlMatchingResultRepository struct {
@@ -21,19 +22,21 @@ func NewSQLMatchingResultRepository(db *sql.DB) MatchingResultRepository {
 	return &sqlMatchingResultRepository{DB: db}
 }
 
-func (r sqlMatchingResultRepository) Load(query *string) ([]models.MatchingResult, error) {
-
-	defaultQuery := "SELECT [Id], [MatchingResultId], [FieldName], [CustomerValue], [WatchlistValue], [FieldScore], [FieldWeight], [AlgorithmUsed] FROM [dbo].[MATCHING_DETAILS]"
+func (r *sqlMatchingResultRepository) Load(ctx context.Context, query *string) ([]models.MatchingResult, error) {
+	defaultQuery := `
+		SELECT [Id], [BatchId], [CIFNumber], [CustomerName],
+		       [WatchlistId], [WatchlistSource], [SimilarityScore],
+		       [Status], [ProcessDate], [ProcessTime], [CreatedAt]
+		FROM [dbo].[MATCHING_RESULTS]`
 
 	if query == nil || *query == "" {
 		query = &defaultQuery
 	}
 
-	rows, err := r.DB.Query(*query)
+	rows, err := r.DB.QueryContext(ctx, *query)
 	if err != nil {
-		return []models.MatchingResult{}, err
+		return nil, err
 	}
-
 	defer rows.Close()
 
 	var records []models.MatchingResult
@@ -50,7 +53,8 @@ func (r sqlMatchingResultRepository) Load(query *string) ([]models.MatchingResul
 			&rec.Status,
 			&rec.ProcessDate,
 			&rec.ProcessTime,
-			&rec.CreatedAt); err != nil {
+			&rec.CreatedAt,
+		); err != nil {
 			return nil, err
 		}
 		records = append(records, rec)
@@ -59,43 +63,32 @@ func (r sqlMatchingResultRepository) Load(query *string) ([]models.MatchingResul
 	return records, nil
 }
 
-func (r *sqlMatchingResultRepository) Save(results []models.MatchingResult) error {
-	trx, err := r.DB.Begin()
+func (r *sqlMatchingResultRepository) Save(ctx context.Context, results []models.MatchingResult) error {
+	if len(results) == 0 {
+		return nil
+	}
+
+	tx, err := r.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
-	defer trx.Rollback()
+	defer tx.Rollback()
 
-	stmt, err := trx.Prepare(
-		`INSERT INTO MATCHING_RESULTS (
-			BatchId,
-			CIFNumber,
-			CustomerName,
-			WatchlistId,
-			WatchlistSource,
-			SimilarityScore,
-			Status,
-			ProcessDate,
-			ProcessTime
-		) VALUES (
-			@BatchId,
-			@CIFNumber,
-			@CustomerName,
-			@WatchlistID,
-			@WatchlistSource,
-			@SimilarityScore,
-			@Status,
-			@ProcessDate,
-			@ProcessTime
-	)`)
+	const q = `
+		INSERT INTO dbo.MATCHING_RESULTS
+			(BatchId, CIFNumber, CustomerName, WatchlistId, WatchlistSource, 
+			 SimilarityScore, Status, ProcessDate, ProcessTime)
+		VALUES (@p1, @p2, @p3, @p4, @p5, @p6, @p7, @p8, @p9)`
+
+	stmt, err := tx.PrepareContext(ctx, q)
 	if err != nil {
 		return err
 	}
-
 	defer stmt.Close()
 
 	for _, res := range results {
-		if _, err := stmt.Exec(
+		if _, err := stmt.ExecContext(
+			ctx,
 			res.BatchID,
 			res.CIFNumber,
 			res.CustomerName,
@@ -104,20 +97,21 @@ func (r *sqlMatchingResultRepository) Save(results []models.MatchingResult) erro
 			res.SimilarityScore,
 			res.Status,
 			res.ProcessDate,
-			res.ProcessTime); err != nil {
+			res.ProcessTime,
+		); err != nil {
 			return err
 		}
 	}
 
-	return trx.Commit()
+	return tx.Commit()
 }
 
-func (r *sqlMatchingResultRepository) SaveBatch(batchID string, results []models.MatchingResult) error {
+func (r *sqlMatchingResultRepository) SaveBatch(ctx context.Context, batchID string, results []models.MatchingResult) error {
 	if len(results) == 0 {
 		return nil
 	}
 
-	tx, err := r.DB.Begin()
+	tx, err := r.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -142,38 +136,29 @@ func (r *sqlMatchingResultRepository) SaveBatch(batchID string, results []models
 	defer stmt.Close()
 
 	for _, res := range results {
-		// kalau ada kolom yang bisa NULL, gunakan sql.NullXxx agar aman
 		var customerName sql.NullString
 		if res.CustomerName != "" {
 			customerName = sql.NullString{String: res.CustomerName, Valid: true}
-		} else {
-			customerName = sql.NullString{Valid: false}
 		}
 
-		_, err = stmt.Exec(
+		if _, err := stmt.Exec(
 			batchID,
 			res.CIFNumber,
-			customerName, // sudah ter-handle NULL
+			customerName,
 			res.WatchlistID,
 			res.WatchlistSource,
 			res.SimilarityScore,
 			res.Status,
 			res.ProcessDate,
 			res.ProcessTime,
-		)
-		if err != nil {
+		); err != nil {
 			return err
 		}
 	}
 
-	// flush buffer ke SQL Server
-	if _, err = stmt.Exec(); err != nil {
+	if _, err := stmt.Exec(); err != nil {
 		return err
 	}
 
-	if err = tx.Commit(); err != nil {
-		return err
-	}
-
-	return nil
+	return tx.Commit()
 }

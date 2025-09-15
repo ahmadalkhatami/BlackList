@@ -4,19 +4,23 @@ import (
 	"BlackListWorker/internal/domain/models"
 	"BlackListWorker/internal/domain/repositories"
 	"BlackListWorker/pkg/textutil"
+	"context"
 )
 
-type WatchlistServiceInterface interface {
-	LoadDTTOT() ([]models.MasterTeroris, error)
-	LoadWMD() ([]models.MasterWMD, error)
-	LoadLocalBlacklist() ([]models.MasterLocalBlacklist, error)
-	LoadDTTOTIndividu() ([]models.MasterWatchlist, error)
-	LoadWMDIndividu() ([]models.MasterWatchlist, error)
-	LoadLocalBlacklistIndividu() ([]models.MasterWatchlist, error)
-	LoadDTTOTCorporate() ([]models.MasterWatchlist, error)
-	LoadWMDCorporate() ([]models.MasterWatchlist, error)
-	LoadLocalBlacklistCorporate() ([]models.MasterWatchlist, error)
-	LoadAllWatchlists() ([]models.MasterWatchlist, error)
+type WatchlistService interface {
+	LoadDTTOT(ctx context.Context) ([]models.MasterTeroris, error)
+	LoadWMD(ctx context.Context) ([]models.MasterWMD, error)
+	LoadLocalBlacklist(ctx context.Context) ([]models.MasterLocalBlacklist, error)
+
+	LoadDTTOTIndividu(ctx context.Context) ([]models.MasterWatchlist, error)
+	LoadWMDIndividu(ctx context.Context) ([]models.MasterWatchlist, error)
+	LoadLocalBlacklistIndividu(ctx context.Context) ([]models.MasterWatchlist, error)
+
+	LoadDTTOTCorporate(ctx context.Context) ([]models.MasterWatchlist, error)
+	LoadWMDCorporate(ctx context.Context) ([]models.MasterWatchlist, error)
+	LoadLocalBlacklistCorporate(ctx context.Context) ([]models.MasterWatchlist, error)
+
+	LoadAllWatchlists(ctx context.Context) ([]models.MasterWatchlist, error)
 }
 
 type WatchlistServiceImpl struct {
@@ -28,24 +32,18 @@ type WatchlistServiceImpl struct {
 type WatchlistOption func(*WatchlistServiceImpl)
 
 func WithMasterTeroris(r repositories.MasterTerorisRepository) WatchlistOption {
-	return func(w *WatchlistServiceImpl) {
-		w.MasterDTTOT = r
-	}
+	return func(w *WatchlistServiceImpl) { w.MasterDTTOT = r }
 }
 
 func WithMasterWMD(r repositories.MasterWMDRepository) WatchlistOption {
-	return func(w *WatchlistServiceImpl) {
-		w.MasterWMD = r
-	}
+	return func(w *WatchlistServiceImpl) { w.MasterWMD = r }
 }
 
 func WithMasterLocalBlacklist(r repositories.MasterLocalBlacklistRepository) WatchlistOption {
-	return func(w *WatchlistServiceImpl) {
-		w.MasterLocalblacklist = r
-	}
+	return func(w *WatchlistServiceImpl) { w.MasterLocalblacklist = r }
 }
 
-func NewWatchlistService(opts ...WatchlistOption) WatchlistServiceInterface {
+func NewWatchlistService(opts ...WatchlistOption) WatchlistService {
 	svc := &WatchlistServiceImpl{}
 	for _, opt := range opts {
 		opt(svc)
@@ -53,120 +51,145 @@ func NewWatchlistService(opts ...WatchlistOption) WatchlistServiceInterface {
 	return svc
 }
 
-func (w *WatchlistServiceImpl) LoadDTTOT() ([]models.MasterTeroris, error) {
-	return w.MasterDTTOT.Load()
-}
-
-func (w *WatchlistServiceImpl) LoadWMD() ([]models.MasterWMD, error) {
-	return w.MasterWMD.Load()
-}
-
-func (w *WatchlistServiceImpl) LoadLocalBlacklist() ([]models.MasterLocalBlacklist, error) {
-	return w.MasterLocalblacklist.Load()
-}
-
-func (w *WatchlistServiceImpl) LoadDTTOTIndividu() ([]models.MasterWatchlist, error) {
-	var results []models.MasterWatchlist
-	if w.MasterDTTOT != nil {
-		dttot, err := w.MasterDTTOT.LoadIndividu()
-		if err != nil {
-			return []models.MasterWatchlist{}, err
-		}
-		results = append(results, ToWatchlistSlice(dttot)...)
+// ==================== Master Loader ====================
+func (w *WatchlistServiceImpl) LoadDTTOT(ctx context.Context) ([]models.MasterTeroris, error) {
+	if w.MasterDTTOT == nil {
+		return []models.MasterTeroris{}, nil
 	}
-	return results, nil
+	return w.MasterDTTOT.Load(ctx)
 }
 
-func (w *WatchlistServiceImpl) LoadWMDIndividu() ([]models.MasterWatchlist, error) {
-	var results []models.MasterWatchlist
-	if w.MasterWMD != nil {
-		list, err := w.MasterWMD.LoadIndividu()
-		if err != nil {
-			return []models.MasterWatchlist{}, err
-		}
-		results = append(results, ToWatchlistSlice(list)...)
+func (w *WatchlistServiceImpl) LoadWMD(ctx context.Context) ([]models.MasterWMD, error) {
+	if w.MasterWMD == nil {
+		return []models.MasterWMD{}, nil
 	}
-	return results, nil
+	return w.MasterWMD.Load(ctx)
 }
 
-func (w *WatchlistServiceImpl) LoadLocalBlacklistIndividu() ([]models.MasterWatchlist, error) {
-	var results []models.MasterWatchlist
-	if w.MasterLocalblacklist != nil {
-		list, err := w.MasterLocalblacklist.LoadIndividu()
-		if err != nil {
-			return []models.MasterWatchlist{}, err
-		}
-		results = append(results, ToWatchlistSlice(list)...)
+func (w *WatchlistServiceImpl) LoadLocalBlacklist(ctx context.Context) ([]models.MasterLocalBlacklist, error) {
+	if w.MasterLocalblacklist == nil {
+		return []models.MasterLocalBlacklist{}, nil
 	}
-	return results, nil
+	return w.MasterLocalblacklist.Load(ctx)
 }
 
-func (w *WatchlistServiceImpl) LoadDTTOTCorporate() ([]models.MasterWatchlist, error) {
-	var results []models.MasterWatchlist
-	if w.MasterDTTOT != nil {
-		list, err := w.MasterDTTOT.LoadCorporate()
-		if err != nil {
-			return []models.MasterWatchlist{}, err
-		}
-		results = append(results, ToWatchlistSlice(list)...)
+// ==================== Watchlist Loader Individu ====================
+func (w *WatchlistServiceImpl) LoadDTTOTIndividu(ctx context.Context) ([]models.MasterWatchlist, error) {
+	if w.MasterDTTOT == nil {
+		return []models.MasterWatchlist{}, nil
 	}
-	return results, nil
-}
 
-func (w *WatchlistServiceImpl) LoadWMDCorporate() ([]models.MasterWatchlist, error) {
-	var results []models.MasterWatchlist
-	if w.MasterWMD != nil {
-		list, err := w.MasterWMD.LoadCorporate()
-		if err != nil {
-			return []models.MasterWatchlist{}, err
-		}
-		results = append(results, ToWatchlistSlice(list)...)
+	list, err := w.MasterDTTOT.Load(ctx,
+		repositories.WithTerorisActive(true),
+		repositories.WithTerorisType("individu"),
+	)
+	if err != nil {
+		return nil, err
 	}
-	return results, nil
+	return ToWatchlistSlice(list), nil
 }
 
-func (w *WatchlistServiceImpl) LoadLocalBlacklistCorporate() ([]models.MasterWatchlist, error) {
-	var results []models.MasterWatchlist
-	if w.MasterLocalblacklist != nil {
-		list, err := w.MasterLocalblacklist.LoadCorporate()
-		if err != nil {
-			return []models.MasterWatchlist{}, err
-		}
-		results = append(results, ToWatchlistSlice(list)...)
+func (w *WatchlistServiceImpl) LoadWMDIndividu(ctx context.Context) ([]models.MasterWatchlist, error) {
+	if w.MasterWMD == nil {
+		return []models.MasterWatchlist{}, nil
 	}
-	return results, nil
+
+	list, err := w.MasterWMD.Load(ctx,
+		repositories.WithWMDActive(true),
+		repositories.WithWMDType("individu"),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return ToWatchlistSlice(list), nil
 }
 
-func (w *WatchlistServiceImpl) LoadAllWatchlists() ([]models.MasterWatchlist, error) {
+func (w *WatchlistServiceImpl) LoadLocalBlacklistIndividu(ctx context.Context) ([]models.MasterWatchlist, error) {
+	if w.MasterLocalblacklist == nil {
+		return []models.MasterWatchlist{}, nil
+	}
+
+	list, err := w.MasterLocalblacklist.Load(ctx,
+		repositories.WithLBActive(true),
+		repositories.WithLBType("individu"),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return ToWatchlistSlice(list), nil
+}
+
+// ==================== Watchlist Loader Corporate ====================
+func (w *WatchlistServiceImpl) LoadDTTOTCorporate(ctx context.Context) ([]models.MasterWatchlist, error) {
+	if w.MasterDTTOT == nil {
+		return []models.MasterWatchlist{}, nil
+	}
+
+	list, err := w.MasterDTTOT.Load(ctx,
+		repositories.WithTerorisActive(true),
+		repositories.WithTerorisType("korporasi"),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return ToWatchlistSlice(list), nil
+}
+
+func (w *WatchlistServiceImpl) LoadWMDCorporate(ctx context.Context) ([]models.MasterWatchlist, error) {
+	if w.MasterWMD == nil {
+		return []models.MasterWatchlist{}, nil
+	}
+
+	list, err := w.MasterWMD.Load(ctx,
+		repositories.WithWMDActive(true),
+		repositories.WithWMDType("korporasi"),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return ToWatchlistSlice(list), nil
+}
+
+func (w *WatchlistServiceImpl) LoadLocalBlacklistCorporate(ctx context.Context) ([]models.MasterWatchlist, error) {
+	if w.MasterLocalblacklist == nil {
+		return []models.MasterWatchlist{}, nil
+	}
+
+	list, err := w.MasterLocalblacklist.Load(ctx,
+		repositories.WithLBActive(true),
+		repositories.WithLBType("korporasi"),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return ToWatchlistSlice(list), nil
+}
+
+// ==================== Combine All ====================
+func (w *WatchlistServiceImpl) LoadAllWatchlists(ctx context.Context) ([]models.MasterWatchlist, error) {
 	var combined []models.MasterWatchlist
 
-	if w.MasterDTTOT != nil {
-		dttot, err := w.MasterDTTOT.Load()
-		if err != nil {
-			return nil, err
-		}
-		combined = append(combined, ToWatchlistSlice(dttot)...)
+	loaders := []func(context.Context) ([]models.MasterWatchlist, error){
+		w.LoadDTTOTIndividu,
+		w.LoadWMDIndividu,
+		w.LoadLocalBlacklistIndividu,
+		w.LoadDTTOTCorporate,
+		w.LoadWMDCorporate,
+		w.LoadLocalBlacklistCorporate,
 	}
 
-	if w.MasterWMD != nil {
-		wmd, err := w.MasterWMD.Load()
+	for _, loader := range loaders {
+		list, err := loader(ctx)
 		if err != nil {
 			return nil, err
 		}
-		combined = append(combined, ToWatchlistSlice(wmd)...)
-	}
-
-	if w.MasterLocalblacklist != nil {
-		local, err := w.MasterLocalblacklist.Load()
-		if err != nil {
-			return nil, err
-		}
-		combined = append(combined, ToWatchlistSlice(local)...)
+		combined = append(combined, list...)
 	}
 
 	return combined, nil
 }
 
+// ==================== Mapper ====================
 func ToWatchlist(item models.Watchlistable) models.MasterWatchlist {
 	return models.MasterWatchlist{
 		ID:           item.GetID(),
@@ -192,4 +215,13 @@ func ToWatchlistSlice[T any](items []T) []models.MasterWatchlist {
 		}
 	}
 	return result
+}
+
+// ==================== Loader Generic ====================
+func loadWatchlist[T any](ctx context.Context, loader func(context.Context) ([]T, error)) ([]models.MasterWatchlist, error) {
+	list, err := loader(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return ToWatchlistSlice(list), nil
 }

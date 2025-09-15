@@ -3,8 +3,10 @@ package bootstrap
 import (
 	"BlackListWorker/config"
 	"BlackListWorker/internal/db"
+	"context"
 	"database/sql"
 	"fmt"
+	"time"
 )
 
 type app struct{}
@@ -14,10 +16,9 @@ func NewApp() *app {
 }
 
 func (a *app) Start() error {
-	// 1. Load environment variables
+
 	config.LoadEnv()
 
-	// 2. Load config & connect to DB
 	cfg := config.Load()
 	conn := db.NewSQLServerConnector(cfg.DBServer, cfg.DBUser, cfg.DBPassword, cfg.DBName)
 
@@ -27,25 +28,35 @@ func (a *app) Start() error {
 	}
 	defer sqlDB.Close()
 
-	// 3. Print current DB
 	if err := printCurrentDB(sqlDB); err != nil {
 		return err
 	}
 
-	// // 4. Init matching service
-	// svc, err := services.NewMatchingService(sqlDB)
-	// if err != nil {
-	// 	return fmt.Errorf("create matching service: %w", err)
-	// }
+	// 2️⃣ Buat container (service & matchers)
+	container := NewContainer(sqlDB)
 
-	// // 5. Run matching
-	// results, details, err := svc.RunAll()
-	// if err != nil {
-	// 	return fmt.Errorf("run matching service: %w", err)
-	// }
+	startTime := time.Now()
 
-	// // 6. Save results
-	// return saveResults(sqlDB, results, details)
+	// 3️⃣ Jalankan match service
+	ctx := context.Background()
+	err = container.Match.RunMatch(ctx)
+	if err != nil {
+		fmt.Printf("❌ Error saat matching: %v\n", err)
+		return nil
+	}
+
+	duration := time.Since(startTime)
+
+	// 4️⃣ Ambil hasil matching
+	results := container.Match.GetResults()
+	fmt.Printf("✅ Total match: %d | Waktu proses: %s\n", len(results.MatchResult), duration)
+
+	for _, r := range results.MatchResult {
+		fmt.Printf("CIF: %s | Watchlist: %d | Score: %.2f\n", r.CIFNumber, r.WatchlistID, r.SimilarityScore)
+	}
+
+	fmt.Printf("⏱️ Matching selesai dalam: %s\n", duration)
+
 	return nil
 }
 
@@ -66,25 +77,3 @@ func printCurrentDB(sqlDB *sql.DB) error {
 	fmt.Println("Current Database:", currentDB)
 	return nil
 }
-
-// // saveResults sekarang menerima map[int64][]models.MatchingDetail
-// func saveResults(sqlDB *sql.DB, results []models.MatchingResult, details map[int64][]models.MatchingDetail) error {
-// 	// Get next batch ID
-// 	batchID, err := services.GetNextBatchID(sqlDB)
-// 	if err != nil {
-// 		return fmt.Errorf("get batch id: %w", err)
-// 	}
-
-// 	// Assign batchID ke setiap result
-// 	for i := range results {
-// 		results[i].BatchID = batchID
-// 	}
-
-// 	// Insert results dan detail
-// 	if err := services.InsertMatchingResults(sqlDB, results, details); err != nil {
-// 		return fmt.Errorf("failed to insert matching results: %w", err)
-// 	}
-
-// 	fmt.Printf("\nInserted %d results with BatchID %d\n", len(results), batchID)
-// 	return nil
-// }

@@ -2,13 +2,16 @@ package repositories
 
 import (
 	"BlackListWorker/internal/domain/models"
+	"context"
 	"database/sql"
+
+	mssql "github.com/denisenkom/go-mssqldb"
 )
 
 type MatchingDetailsRepository interface {
-	Load(query string) ([]models.MatchingDetail, error)
-	Save(details []models.MatchingDetail) error
-	SaveBatch(batchID string, details []models.MatchingDetail) error
+	Load(ctx context.Context) ([]models.MatchingDetail, error)
+	Save(ctx context.Context, details []models.MatchingDetail) error
+	SaveBatch(ctx context.Context, batchID string, details []models.MatchingDetail) error
 }
 
 type sqlMatchingDetailsRepository struct {
@@ -19,12 +22,26 @@ func NewSQLMatchingDetailsRepository(db *sql.DB) MatchingDetailsRepository {
 	return &sqlMatchingDetailsRepository{DB: db}
 }
 
-func (r sqlMatchingDetailsRepository) Load(query string) ([]models.MatchingDetail, error) {
-	rows, err := r.DB.Query(query)
-	if err != nil {
-		return []models.MatchingDetail{}, err
-	}
+// Query sudah fixed di sini, nggak perlu parametris
+func (r sqlMatchingDetailsRepository) Load(ctx context.Context) ([]models.MatchingDetail, error) {
 
+	query := `
+		SELECT 
+			ID,
+			MatchingResultId,
+			FieldName,
+			CustomerValue,
+			WatchlistValue,
+			FieldScore,
+			FieldWeight,
+			AlgorithmUsed
+		FROM dbo.MATCHING_DETAILS
+	`
+
+	rows, err := r.DB.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
 	defer rows.Close()
 
 	var records []models.MatchingDetail
@@ -38,21 +55,29 @@ func (r sqlMatchingDetailsRepository) Load(query string) ([]models.MatchingDetai
 			&rec.WatchlistValue,
 			&rec.FieldScore,
 			&rec.FieldWeight,
-			&rec.AlgorithmUsed); err != nil {
+			&rec.AlgorithmUsed,
+		); err != nil {
 			return nil, err
 		}
 		records = append(records, rec)
 	}
+
 	return records, nil
 }
 
-func (r sqlMatchingDetailsRepository) Save(details []models.MatchingDetail) error {
-	tx, err := r.DB.Begin()
+func (r sqlMatchingDetailsRepository) Save(ctx context.Context, details []models.MatchingDetail) error {
+	tx, err := r.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 
-	stmt, err := tx.Prepare("INSERT INTO [dbo].[MATCHING_DETAILS] (MatchingResultId, FieldName, CustomerValue, WatchlistValue, FieldScore, FieldWeight, AlgorithmUsed) VALUES (@p1, @p2, @p3, @p4, @p5, @p6, @p7)")
+	const q = `
+		INSERT INTO dbo.MATCHING_DETAILS
+		(MatchingResultId, FieldName, CustomerValue, WatchlistValue, FieldScore, FieldWeight, AlgorithmUsed)
+		VALUES (@p1, @p2, @p3, @p4, @p5, @p6, @p7)
+	`
+
+	stmt, err := tx.PrepareContext(ctx, q)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -60,14 +85,16 @@ func (r sqlMatchingDetailsRepository) Save(details []models.MatchingDetail) erro
 	defer stmt.Close()
 
 	for _, detail := range details {
-		_, err := stmt.Exec(
+		_, err := stmt.ExecContext(
+			ctx,
 			detail.MatchingResultID,
 			detail.FieldName,
 			detail.CustomerValue,
 			detail.WatchlistValue,
 			detail.FieldScore,
 			detail.FieldWeight,
-			detail.AlgorithmUsed)
+			detail.AlgorithmUsed,
+		)
 		if err != nil {
 			tx.Rollback()
 			return err
@@ -77,32 +104,53 @@ func (r sqlMatchingDetailsRepository) Save(details []models.MatchingDetail) erro
 	return tx.Commit()
 }
 
-func (r sqlMatchingDetailsRepository) SaveBatch(batchID string, details []models.MatchingDetail) error {
-	tx, err := r.DB.Begin()
+func (r sqlMatchingDetailsRepository) SaveBatch(ctx context.Context, batchID string, details []models.MatchingDetail) error {
+	tx, err := r.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 
-	stmt, err := tx.Prepare("INSERT INTO [dbo].[MATCHING_DETAILS] (MatchingResultId, FieldName, CustomerValue, WatchlistValue, FieldScore, FieldWeight, AlgorithmUsed) VALUES (@p1, @p2, @p3, @p4, @p5, @p6, @p7)")
+	stmt, err := tx.Prepare(mssql.CopyIn(
+		"MATCHING_DETAILS",
+		mssql.BulkOptions{},
+		"MatchingResultId",
+		"FieldName",
+		"CustomerValue",
+		"WatchlistValue",
+		"FieldScore",
+		"FieldWeight",
+		"AlgorithmUsed",
+	))
 	if err != nil {
-		tx.Rollback()
 		return err
 	}
-	defer stmt.Close()
 
 	for _, detail := range details {
-		_, err := stmt.Exec(
+		_, err = stmt.Exec(
 			detail.MatchingResultID,
 			detail.FieldName,
 			detail.CustomerValue,
 			detail.WatchlistValue,
 			detail.FieldScore,
 			detail.FieldWeight,
-			detail.AlgorithmUsed)
+			detail.AlgorithmUsed,
+		)
 		if err != nil {
+			stmt.Close()
 			tx.Rollback()
 			return err
 		}
+	}
+
+	if _, err := stmt.Exec(); err != nil {
+		stmt.Close()
+		tx.Rollback()
+		return err
+	}
+
+	if err := stmt.Close(); err != nil {
+		tx.Rollback()
+		return err
 	}
 
 	return tx.Commit()

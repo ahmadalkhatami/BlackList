@@ -4,69 +4,82 @@ import (
 	"BlackListWorker/internal/domain/models"
 	"BlackListWorker/internal/domain/repositories"
 	"BlackListWorker/internal/utils"
+	"context"
 	"strconv"
 )
 
 const defaultThreshold = 1
 
-type SystemConfigInterface interface {
-	Get(cfgKey string) (models.SystemConfig, error)
-	GetJoinedMatchingConfig() ([]models.JoinedMatchingConfig, error)
-	GetThreshold(cfgKey string) (float64, error)
-	LoadIndividu() ([]models.JoinedMatchingConfig, error)
-	LoadCorporate() ([]models.JoinedMatchingConfig, error)
+type SystemConfigService interface {
+	Get(ctx context.Context, opts ...repositories.SystemConfigOption) (models.SystemConfig, error)
+	GetJoinedMatchingConfig(ctx context.Context) ([]models.JoinedMatchingConfig, error)
+	GetThreshold(ctx context.Context) (float64, error)
+	GetMatchingAlgorithm(ctx context.Context) (string, error)
+	LoadIndividu(ctx context.Context) ([]models.JoinedMatchingConfig, error)
+	LoadCorporate(ctx context.Context) ([]models.JoinedMatchingConfig, error)
 }
 
-type SystemConfigImpl struct {
+type systemConfigService struct {
 	MasterMatching       repositories.MasterMatchingRepository
 	MasterMatchingConfig repositories.MasterMatchingConfigRepository
 	SystemConfig         repositories.SystemConfigRepository
 }
 
-type ConfigOption func(*SystemConfigImpl)
+type ConfigOption func(*systemConfigService)
 
 func WithMasterMatching(r repositories.MasterMatchingRepository) ConfigOption {
-	return func(s *SystemConfigImpl) {
-		s.MasterMatching = r
-	}
+	return func(s *systemConfigService) { s.MasterMatching = r }
 }
 
 func WithMasterMatchingConfig(r repositories.MasterMatchingConfigRepository) ConfigOption {
-	return func(s *SystemConfigImpl) {
-		s.MasterMatchingConfig = r
-	}
+	return func(s *systemConfigService) { s.MasterMatchingConfig = r }
 }
 
 func WithSystemConfig(r repositories.SystemConfigRepository) ConfigOption {
-	return func(s *SystemConfigImpl) {
-		s.SystemConfig = r
-	}
+	return func(s *systemConfigService) { s.SystemConfig = r }
 }
 
-func NewConfigService(opts ...ConfigOption) SystemConfigInterface {
-	svc := &SystemConfigImpl{}
+func NewConfigService(opts ...ConfigOption) SystemConfigService {
+	svc := &systemConfigService{}
 	for _, opt := range opts {
 		opt(svc)
 	}
 	return svc
 }
 
-func (s *SystemConfigImpl) Get(cfgKey string) (models.SystemConfig, error) {
-	record, err := s.SystemConfig.Load(cfgKey)
-	if err != nil {
-		return models.SystemConfig{}, err
-	}
-	return record, nil
+func (s *systemConfigService) Get(ctx context.Context, opts ...repositories.SystemConfigOption) (models.SystemConfig, error) {
+	return s.SystemConfig.LoadOne(ctx, opts...)
 }
 
-func (s *SystemConfigImpl) LoadIndividu() ([]models.JoinedMatchingConfig, error) {
+func (s *systemConfigService) LoadIndividu(ctx context.Context) ([]models.JoinedMatchingConfig, error) {
+	return s.loadJoined(ctx, func() ([]models.MasterMatching, error) {
+		return s.MasterMatching.Load(ctx, repositories.WithIndividual(true))
+	})
+}
 
-	configList, err := s.MasterMatchingConfig.Load()
+func (s *systemConfigService) LoadCorporate(ctx context.Context) ([]models.JoinedMatchingConfig, error) {
+	return s.loadJoined(ctx, func() ([]models.MasterMatching, error) {
+		return s.MasterMatching.Load(ctx, repositories.WithIndividual(false))
+	})
+}
+
+func (s *systemConfigService) GetJoinedMatchingConfig(ctx context.Context) ([]models.JoinedMatchingConfig, error) {
+	return s.loadJoined(ctx, func() ([]models.MasterMatching, error) {
+		return s.MasterMatching.Load(ctx)
+	})
+}
+
+func (s *systemConfigService) loadJoined(
+	ctx context.Context,
+	loadMatching func() ([]models.MasterMatching, error),
+) ([]models.JoinedMatchingConfig, error) {
+
+	configList, err := s.MasterMatchingConfig.Load(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	matchingList, err := s.MasterMatching.LoadIndividu()
+	matchingList, err := loadMatching()
 	if err != nil {
 		return nil, err
 	}
@@ -76,74 +89,17 @@ func (s *SystemConfigImpl) LoadIndividu() ([]models.JoinedMatchingConfig, error)
 		matchingMap[m.Id] = m
 	}
 
-	// generic MapSlice2
 	result := utils.MapSlice2(
 		configList,
 		matchingMap,
 		func(c models.MasterMatchingConfig) string { return c.MatchingId },
-		MapConfigAndMatching,
+		MapConfigMatching,
 	)
 
 	return result, nil
 }
 
-func (s *SystemConfigImpl) LoadCorporate() ([]models.JoinedMatchingConfig, error) {
-
-	configList, err := s.MasterMatchingConfig.Load()
-	if err != nil {
-		return nil, err
-	}
-
-	matchingList, err := s.MasterMatching.LoadCorporate()
-	if err != nil {
-		return nil, err
-	}
-
-	matchingMap := make(map[string]models.MasterMatching, len(matchingList))
-	for _, m := range matchingList {
-		matchingMap[m.Id] = m
-	}
-
-	// generic MapSlice2
-	result := utils.MapSlice2(
-		configList,
-		matchingMap,
-		func(c models.MasterMatchingConfig) string { return c.MatchingId },
-		MapConfigAndMatching,
-	)
-
-	return result, nil
-}
-
-func (s *SystemConfigImpl) GetJoinedMatchingConfig() ([]models.JoinedMatchingConfig, error) {
-
-	configList, err := s.MasterMatchingConfig.Load()
-	if err != nil {
-		return nil, err
-	}
-
-	matchingList, err := s.MasterMatching.Load()
-	if err != nil {
-		return nil, err
-	}
-
-	matchingMap := make(map[string]models.MasterMatching, len(matchingList))
-	for _, m := range matchingList {
-		matchingMap[m.Id] = m
-	}
-
-	// generic MapSlice2
-	result := utils.MapSlice2(
-		configList,
-		matchingMap,
-		func(c models.MasterMatchingConfig) string { return c.MatchingId },
-		MapConfigAndMatching,
-	)
-
-	return result, nil
-}
-
-func MapConfigAndMatching(c models.MasterMatchingConfig, m models.MasterMatching) models.JoinedMatchingConfig {
+func MapConfigMatching(c models.MasterMatchingConfig, m models.MasterMatching) models.JoinedMatchingConfig {
 	return models.JoinedMatchingConfig{
 		Id:                c.Id,
 		MatchingId:        c.MatchingId,
@@ -156,8 +112,8 @@ func MapConfigAndMatching(c models.MasterMatchingConfig, m models.MasterMatching
 	}
 }
 
-func (s *SystemConfigImpl) GetThreshold(cfgKey string) (float64, error) {
-	cfg, err := s.Get(cfgKey)
+func (s *systemConfigService) GetThreshold(ctx context.Context) (float64, error) {
+	cfg, err := s.Get(ctx, repositories.WithConfigKey("MATCHING_THRESHOLD"))
 	if err != nil || cfg.ConfigKey == "" {
 		return defaultThreshold, nil
 	}
@@ -167,6 +123,14 @@ func (s *SystemConfigImpl) GetThreshold(cfgKey string) (float64, error) {
 			return val, nil
 		}
 	}
-
 	return defaultThreshold, nil
+}
+
+func (s *systemConfigService) GetMatchingAlgorithm(ctx context.Context) (string, error) {
+	cfg, err := s.Get(ctx, repositories.WithConfigKey("MATCHING_SIMILARITY_METHOD"))
+	if err != nil || cfg.ConfigKey == "" {
+		return "fuzzywuzzy", nil
+	}
+
+	return cfg.ConfigValue, nil
 }

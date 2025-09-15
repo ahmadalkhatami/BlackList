@@ -6,25 +6,21 @@ var ErrUnknownAlgorithm = errors.New("unknown similarity algorithm")
 
 type Algorithm string
 
-// Enum2Man
 const (
 	AlgoLevenshtein Algorithm = "levenshtein"
 	AlgoJaroWinkler Algorithm = "jaro_winkler"
 	AlgoFuzzyWuzzy  Algorithm = "fuzzywuzzy"
-	// AlgoCosine      Algorithm = "cosine"
+	AlgoCosine      Algorithm = "cosine"
 )
 
-// internal config untuk parameter opsional
 type similarityOptions struct {
 	maxDistance    int
 	boostThreshold float64
 	prefixSize     int
 }
 
-// Option adalah fungsi yang bisa mengubah konfigurasi
 type Option func(*similarityOptions)
 
-// Default values
 func defaultOptions() *similarityOptions {
 	return &similarityOptions{
 		maxDistance:    0,
@@ -33,7 +29,6 @@ func defaultOptions() *similarityOptions {
 	}
 }
 
-// Functional options
 func WithMaxDistance(d int) Option {
 	return func(o *similarityOptions) { o.maxDistance = d }
 }
@@ -44,8 +39,6 @@ func WithPrefixSize(p int) Option {
 	return func(o *similarityOptions) { o.prefixSize = p }
 }
 
-// NewCalculator membuat instance calculator sesuai algoritma yang dipilih.
-// Bisa diberikan Option opsional untuk override default config.
 func NewCalculator(algo Algorithm, opts ...Option) (Calculator, error) {
 	cfg := defaultOptions()
 	for _, o := range opts {
@@ -54,13 +47,13 @@ func NewCalculator(algo Algorithm, opts ...Option) (Calculator, error) {
 
 	switch algo {
 	case AlgoLevenshtein:
-		return NewLevenshteinCalculator(cfg.maxDistance), nil
+		return newLevenshteinCalculator(cfg.maxDistance), nil
 	case AlgoJaroWinkler:
-		return NewJaroWinklerCalculator(cfg.boostThreshold, cfg.prefixSize), nil
+		return newJaroWinklerCalculator(cfg.boostThreshold, cfg.prefixSize), nil
 	case AlgoFuzzyWuzzy:
-		return NewFuzzyWuzzyCalculator(), nil
-	// case AlgoCosine:
-	// 	return NewCosineCalculator(), nil
+		return newFuzzyWuzzyCalculator(), nil
+	case AlgoCosine:
+		return newCosineCalculator(cfg.boostThreshold), nil
 	default:
 		return nil, ErrUnknownAlgorithm
 	}

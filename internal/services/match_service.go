@@ -1,69 +1,50 @@
 package services
 
 import (
-	"errors"
+	"BlackListWorker/internal/domain/models"
+	"context"
 )
 
-var ErrUnknownAlgorithm = errors.New("error unknow algorithm")
+type MatchResults struct {
+	MatchResult []models.MatchingResult
+	MatchDetail []models.MatchingDetail
+}
 
 type MatchService interface {
-	RunMatch() error
-	MatchCIFWithDTTOT() error
-	MatchCIFWithWMD() error
-	MatchCIFWithLocalBlacklist() error
+	RunMatch(ctx context.Context) error
+	GetResults() *MatchResults
+}
+
+type Matcher interface {
+	Source() string
+	Match(ctx context.Context) (*MatchResults, error)
 }
 
 type MatchServiceImpl struct {
-	NumWorker   int
-	FieldWeight float64
+	matchers []Matcher
+	results  *MatchResults
 }
 
-type MatchServiceOption func(*MatchServiceImpl)
+func NewMatchService(matchers ...Matcher) *MatchServiceImpl {
+	return &MatchServiceImpl{matchers: matchers}
+}
 
-func WithNumOfWorker(nw int) MatchServiceOption {
-	return func(msi *MatchServiceImpl) {
-		msi.NumWorker = nw
+func (s *MatchServiceImpl) RunMatch(ctx context.Context) error {
+	var allResults MatchResults
+
+	for _, m := range s.matchers {
+		res, err := m.Match(ctx)
+		if err != nil {
+			return err
+		}
+		allResults.MatchResult = append(allResults.MatchResult, res.MatchResult...)
+		allResults.MatchDetail = append(allResults.MatchDetail, res.MatchDetail...)
 	}
-}
 
-func WithFieldWeight(fw float64) MatchServiceOption {
-	return func(msi *MatchServiceImpl) {
-		msi.FieldWeight = fw
-	}
-}
-
-func NewMatchService(opts ...MatchServiceOption) MatchService {
-	svc := &MatchServiceImpl{}
-	for _, opt := range opts {
-		opt(svc)
-	}
-	return svc
-}
-
-func (s *MatchServiceImpl) RunMatch() error {
+	s.results = &allResults
 	return nil
 }
 
-func (s *MatchServiceImpl) MatchCIFWithDTTOT() error {
-	return nil
-}
-
-func (s *MatchServiceImpl) MatchCIFWithDTTOTIndividu() error {
-	return nil
-}
-
-func (s *MatchServiceImpl) MatchCIFWithDTTOTCorporate() error {
-	return nil
-}
-
-func (s *MatchServiceImpl) MatchCIFWithWMD() error {
-	return nil
-}
-
-func (s *MatchServiceImpl) MatchCIFWithLocalBlacklist() error {
-	return nil
-}
-
-func (s *MatchServiceImpl) CalculateResult() (*float64, error) {
-	return nil, nil
+func (s *MatchServiceImpl) GetResults() *MatchResults {
+	return s.results
 }

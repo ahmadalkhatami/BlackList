@@ -2,13 +2,39 @@ package repositories
 
 import (
 	"BlackListWorker/internal/domain/models"
+	"BlackListWorker/internal/utils"
+	"context"
 	"database/sql"
 )
 
+type MasterMatchingFilter struct {
+	IsActive        *bool
+	IsIndividual    *bool
+	WatchlistSource *string
+}
+
+type MasterMatchingOption func(*MasterMatchingFilter)
+
+func WithActive(isActive bool) MasterMatchingOption {
+	return func(f *MasterMatchingFilter) {
+		f.IsActive = &isActive
+	}
+}
+
+func WithIndividual(isIndividual bool) MasterMatchingOption {
+	return func(f *MasterMatchingFilter) {
+		f.IsIndividual = &isIndividual
+	}
+}
+
+func WithSource(source string) MasterMatchingOption {
+	return func(f *MasterMatchingFilter) {
+		f.WatchlistSource = &source
+	}
+}
+
 type MasterMatchingRepository interface {
-	Load() ([]models.MasterMatching, error)
-	LoadIndividu() ([]models.MasterMatching, error)
-	LoadCorporate() ([]models.MasterMatching, error)
+	Load(ctx context.Context, opts ...MasterMatchingOption) ([]models.MasterMatching, error)
 }
 
 type sqlMasterMatchingRepository struct {
@@ -19,19 +45,47 @@ func NewSQLMasterMatchingRepository(db *sql.DB) MasterMatchingRepository {
 	return &sqlMasterMatchingRepository{DB: db}
 }
 
-func (r sqlMasterMatchingRepository) Load() ([]models.MasterMatching, error) {
-	// rows, err := r.DB.Query("SELECT [Id] ,[Name] ,[WatchlistSource] ,[IsIndividual] ,[Description] ,[IsActive] FROM [dbo].[MASTER_MATCHING] WHERE [IsActive] = 1;")
-	rows, err := r.DB.Query("SELECT [Id], [WatchlistSource], [IsIndividual], [IsActive] FROM [dbo].[MASTER_MATCHING] WHERE [IsActive] = 1;")
-	if err != nil {
-		return []models.MasterMatching{}, err
+func (r sqlMasterMatchingRepository) Load(ctx context.Context, opts ...MasterMatchingOption) ([]models.MasterMatching, error) {
+	filter := MasterMatchingFilter{}
+	for _, opt := range opts {
+		opt(&filter)
 	}
 
+	fb := utils.NewQueryBuilder()
+
+	if filter.IsIndividual != nil {
+		fb.Add("IsIndividual", filter.IsIndividual)
+	}
+
+	if filter.IsActive != nil {
+		fb.Add("IsActive", filter.IsActive)
+	}
+
+	if filter.WatchlistSource != nil {
+		fb.Add("WatchlistSource", filter.WatchlistSource)
+	}
+
+	query := `
+		SELECT [Id], [WatchlistSource], [IsIndividual], [IsActive]
+		FROM [dbo].[MASTER_MATCHING]
+	`
+	query, args := fb.Build(query)
+
+	rows, err := r.DB.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
 	defer rows.Close()
 
 	var records []models.MasterMatching
 	for rows.Next() {
 		var rec models.MasterMatching
-		if err := rows.Scan(&rec.Id, &rec.WatchlistSource, &rec.Type, &rec.IsActive); err != nil {
+		if err := rows.Scan(
+			&rec.Id,
+			&rec.WatchlistSource,
+			&rec.Type,
+			&rec.IsActive,
+		); err != nil {
 			return nil, err
 		}
 		records = append(records, rec)
@@ -40,41 +94,27 @@ func (r sqlMasterMatchingRepository) Load() ([]models.MasterMatching, error) {
 	return records, nil
 }
 
-func (r sqlMasterMatchingRepository) LoadIndividu() ([]models.MasterMatching, error) {
-	rows, err := r.DB.Query("SELECT [Id], [WatchlistSource], [IsIndividual], [IsActive] FROM [dbo].[MASTER_MATCHING] WHERE [IsActive] = 1 AND [IsIndividual] = 1;")
-	if err != nil {
-		return []models.MasterMatching{}, err
-	}
+/*
+contoh penggunaan:
 
-	defer rows.Close()
+ctx := context.Background()
+repo := NewSQLMasterMatchingRepository(db)
 
-	var records []models.MasterMatching
-	for rows.Next() {
-		var rec models.MasterMatching
-		if err := rows.Scan(&rec.Id, &rec.WatchlistSource, &rec.Type, &rec.IsActive); err != nil {
-			return nil, err
-		}
-		records = append(records, rec)
-	}
+// ambil semua
+all, _ := repo.Load(ctx)
 
-	return records, nil
-}
-func (r sqlMasterMatchingRepository) LoadCorporate() ([]models.MasterMatching, error) {
-	rows, err := r.DB.Query("SELECT [Id], [WatchlistSource], [IsIndividual], [IsActive] FROM [dbo].[MASTER_MATCHING] WHERE [IsActive] = 1 AND [IsIndividual] = 0;")
-	if err != nil {
-		return []models.MasterMatching{}, err
-	}
+// hanya active
+active, _ := repo.Load(ctx, WithActive(true))
 
-	defer rows.Close()
+// active + individu
+individu, _ := repo.Load(ctx, WithActive(true), WithIndividual(true))
 
-	var records []models.MasterMatching
-	for rows.Next() {
-		var rec models.MasterMatching
-		if err := rows.Scan(&rec.Id, &rec.WatchlistSource, &rec.Type, &rec.IsActive); err != nil {
-			return nil, err
-		}
-		records = append(records, rec)
-	}
+// active + corporate
+corporate, _ := repo.Load(ctx, WithActive(true), WithIndividual(false))
 
-	return records, nil
-}
+// filter by source
+dttot, _ := repo.Load(ctx, WithSource("MASTER_TERORIS"))
+
+// filter by source + corporate
+corpDttot, _ := repo.Load(ctx, WithActive(true), WithIndividual(false), WithSource("MASTER_TERORIS"))
+*/

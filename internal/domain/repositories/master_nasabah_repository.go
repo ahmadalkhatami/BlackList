@@ -2,11 +2,14 @@ package repositories
 
 import (
 	"BlackListWorker/internal/domain/models"
+	"BlackListWorker/internal/utils"
+	"context"
 	"database/sql"
 )
 
 type MasterNasabahRepository interface {
-	Load() ([]models.MasterNasabah, error)
+	Load(ctx context.Context, opts ...NasabahOption) ([]models.MasterNasabah, error)
+	LoadAll(ctx context.Context) ([]models.MasterNasabah, error)
 }
 
 type sqlMasterNasabahRepository struct {
@@ -17,12 +20,43 @@ func NewSQLMasterNasabahRepository(db *sql.DB) MasterNasabahRepository {
 	return &sqlMasterNasabahRepository{DB: db}
 }
 
-func (r sqlMasterNasabahRepository) Load() ([]models.MasterNasabah, error) {
-	rows, err := r.DB.Query("SELECT [Id], [CIFNumber], [NamaNasabah], [TempatLahir], [TanggalLahir], [KTP], [NPWP], [NoPaspor], [StatusNasabah], [CreatedAt] FROM [dbo].[MASTER_NASABAH] WHERE StatusNasabah = 'ACTIVE';")
-	if err != nil {
-		return []models.MasterNasabah{}, err
+type nasabahFilter struct {
+	Status *string
+}
+
+type NasabahOption func(*nasabahFilter)
+
+func WithStatus(status string) NasabahOption {
+	return func(f *nasabahFilter) {
+		f.Status = &status
+	}
+}
+
+func (r sqlMasterNasabahRepository) Load(ctx context.Context, opts ...NasabahOption) ([]models.MasterNasabah, error) {
+
+	// ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	// defer cancel()
+
+	filter := &nasabahFilter{}
+	for _, opt := range opts {
+		opt(filter)
 	}
 
+	fb := utils.NewQueryBuilder()
+
+	fb.Add("StatusNasabah", filter.Status)
+
+	query := `
+		SELECT [Id], [CIFNumber], [NamaNasabah], [TempatLahir], [TanggalLahir],
+		       [KTP], [NPWP], [NoPaspor], [StatusNasabah], [CreatedAt]
+		FROM [dbo].[MASTER_NASABAH]
+	`
+	query, args := fb.Build(query)
+
+	rows, err := r.DB.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
 	defer rows.Close()
 
 	var records []models.MasterNasabah
@@ -38,7 +72,8 @@ func (r sqlMasterNasabahRepository) Load() ([]models.MasterNasabah, error) {
 			&rec.NPWP,
 			&rec.NoPaspor,
 			&rec.StatusNasabah,
-			&rec.CreatedAt); err != nil {
+			&rec.CreatedAt,
+		); err != nil {
 			return nil, err
 		}
 		records = append(records, rec)
@@ -46,3 +81,15 @@ func (r sqlMasterNasabahRepository) Load() ([]models.MasterNasabah, error) {
 
 	return records, nil
 }
+
+func (r sqlMasterNasabahRepository) LoadAll(ctx context.Context) ([]models.MasterNasabah, error) {
+	return r.Load(ctx, WithStatus("ACTIVE"))
+}
+
+/*
+ctx := context.Background()
+repo := repositories.NewSQLMasterNasabahRepository(db)
+nasabah1, _ := repo.LoadAll(ctx)
+nasabah2, _ := repo.Load(ctx)
+nasabah3, _ := repo.Load(ctx, repositories.WithStatus("ACTIVE"), repositories.WithLimit(50))
+*/

@@ -3,28 +3,36 @@ package services
 import (
 	"BlackListWorker/internal/domain/models"
 	"BlackListWorker/internal/domain/repositories"
+	"context"
 )
 
-type MasterNasabahInterface interface {
-	Load() ([]models.MasterNasabah, error)
+type MasterNasabahService interface {
+	Load(ctx context.Context) ([]models.MasterNasabah, error)
 }
 
 type MasterNasabahImpl struct {
 	MasterNasabah repositories.MasterNasabahRepository
 }
 
-func NewMasterNasabah(masterNasabah repositories.MasterNasabahRepository) MasterNasabahInterface {
-	return &MasterNasabahImpl{
-		MasterNasabah: masterNasabah,
+type MasterNasabahOption func(*MasterNasabahImpl)
+
+func WithMasterNasabah(r repositories.MasterNasabahRepository) MasterNasabahOption {
+	return func(m *MasterNasabahImpl) {
+		m.MasterNasabah = r
 	}
 }
 
-func (m *MasterNasabahImpl) Load() ([]models.MasterNasabah, error) {
-
-	result, err := m.MasterNasabah.Load()
-	if err != nil {
-		return []models.MasterNasabah{}, err
+func NewMasterNasabahService(opts ...MasterNasabahOption) MasterNasabahService {
+	svc := &MasterNasabahImpl{}
+	for _, opt := range opts {
+		opt(svc)
 	}
+	return svc
+}
 
-	return result, nil
+func (m *MasterNasabahImpl) Load(ctx context.Context) ([]models.MasterNasabah, error) {
+	if m.MasterNasabah == nil {
+		return nil, nil
+	}
+	return m.MasterNasabah.Load(ctx, repositories.WithStatus("ACTIVE"))
 }

@@ -7,13 +7,13 @@ import (
 )
 
 // FuzzyWuzzyCalculator menghitung similarity ala FuzzyWuzzy (token-based).
-type FuzzyWuzzyCalculator struct{}
+type fuzzyWuzzyCalculator struct{}
 
-func NewFuzzyWuzzyCalculator() *FuzzyWuzzyCalculator {
-	return &FuzzyWuzzyCalculator{}
+func newFuzzyWuzzyCalculator() *fuzzyWuzzyCalculator {
+	return &fuzzyWuzzyCalculator{}
 }
 
-func (c *FuzzyWuzzyCalculator) Calculate(a, b string) float64 {
+func (c *fuzzyWuzzyCalculator) Calculate(a, b string) float64 {
 	a = utils.Normalize(a)
 	b = utils.Normalize(b)
 

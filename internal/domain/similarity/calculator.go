@@ -32,6 +32,12 @@ func main() {
 	// 5. FuzzyWuzzy
 	calc5, _ := similarity.NewCalculator(similarity.AlgoFuzzyWuzzy)
 	fmt.Println("FuzzyWuzzy:", calc5.Calculate("hello world", "helo wrld"))
+
+	// 6. Cosine
+	calc, _ := similarity.NewCalculator(similarity.AlgoCosine)
+	score := calc.Similar("hello world", "hello there")
+	fmt.Println("Cosine similarity:", score)
+
 }
 
 */

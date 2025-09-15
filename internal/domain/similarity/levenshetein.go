@@ -3,15 +3,15 @@ package similarity
 import "github.com/agext/levenshtein"
 
 // LevenshteinCalculator menghitung similarity berbasis Levenshtein distance.
-type LevenshteinCalculator struct {
+type levenshteinCalculator struct {
 	MaxDistance int
 }
 
-func NewLevenshteinCalculator(maxDistance int) *LevenshteinCalculator {
-	return &LevenshteinCalculator{MaxDistance: maxDistance}
+func newLevenshteinCalculator(maxDistance int) *levenshteinCalculator {
+	return &levenshteinCalculator{MaxDistance: maxDistance}
 }
 
-func (c *LevenshteinCalculator) Calculate(a, b string) float64 {
+func (c *levenshteinCalculator) Calculate(a, b string) float64 {
 	d := levenshtein.Distance(a, b, nil)
 
 	if c.MaxDistance > 0 && d > c.MaxDistance {
