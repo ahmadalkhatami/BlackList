@@ -240,13 +240,13 @@ func matchMaster(
 				totalWeight += cfg.FieldWeight
 
 				fieldMatches = append(fieldMatches, models.MatchingDetail{
-					FieldName:        cfg.FieldName,
-					CustomerValue:    custVal,
-					WatchlistValue:   bestMatch,
-					FieldScore:       maxScore,
-					FieldWeight:      cfg.FieldWeight,
-					AlgorithmUsed:    algorithm,
-					MatchingResultID: wl.ID,
+					FieldName:        utils.Ptr(cfg.FieldName),
+					CustomerValue:    utils.Ptr(custVal),
+					WatchlistValue:   utils.Ptr(bestMatch),
+					FieldScore:       utils.Ptr(maxScore),
+					FieldWeight:      utils.Ptr(cfg.FieldWeight),
+					AlgorithmUsed:    utils.Ptr(algorithm),
+					MatchingResultId: utils.Ptr(wl.ID),
 				})
 
 				// if debug {
@@ -274,20 +274,20 @@ func matchMaster(
 			}
 
 			result := models.MatchingResult{
-				CIFNumber:       cif.CIFNumber,
-				CustomerName:    cif.NamaNasabah,
-				WatchlistID:     wl.ID,
-				WatchlistSource: source,
-				SimilarityScore: finalScore,
-				Status:          "SUCCESS",
-				ProcessDate:     time.Now(),
-				ProcessTime:     time.Now(),
-				CreatedAt:       time.Now(),
+				CifNumber:       utils.Ptr(cif.CifNumber),
+				CustomerName:    utils.Ptr(cif.NamaNasabah),
+				WatchlistId:     utils.Ptr(wl.ID),
+				WatchlistSource: utils.Ptr(source),
+				SimilarityScore: utils.Ptr(finalScore),
+				Status:          utils.Ptr("SUCCESS"),
+				ProcessDate:     utils.Ptr(time.Now()),
+				ProcessTime:     utils.Ptr(time.Now()),
+				CreatedAt:       utils.Ptr(time.Now()),
 			}
 
 			matchResults = append(matchResults, result)
 			for i := range fieldMatches {
-				fieldMatches[i].MatchingResultID = result.ID
+				fieldMatches[i].MatchingResultId = utils.Ptr(result.Id)
 				matchDetails = append(matchDetails, fieldMatches[i])
 			}
 

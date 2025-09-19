@@ -71,7 +71,7 @@ func (r sqlMasterWMDRepository) Load(ctx context.Context, opts ...WMDOption) ([]
 	for rows.Next() {
 		var rec models.MasterWMD
 		if err := rows.Scan(
-			&rec.Id,
+			&rec.ID,
 			&rec.Nama,
 			&rec.Alias1,
 			&rec.Alias2,

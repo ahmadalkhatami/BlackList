@@ -2,6 +2,10 @@ package utils
 
 import "time"
 
+func Ptr[T any](v T) *T {
+	return &v
+}
+
 // StringPtr mengembalikan pointer ke string
 func StringPtr(s string) *string {
 	return &s

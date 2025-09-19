@@ -48,8 +48,8 @@ func (r sqlMatchingDetailsRepository) Load(ctx context.Context) ([]models.Matchi
 	for rows.Next() {
 		var rec models.MatchingDetail
 		if err := rows.Scan(
-			&rec.ID,
-			&rec.MatchingResultID,
+			&rec.Id,
+			&rec.MatchingResultId,
 			&rec.FieldName,
 			&rec.CustomerValue,
 			&rec.WatchlistValue,
@@ -87,7 +87,7 @@ func (r sqlMatchingDetailsRepository) Save(ctx context.Context, details []models
 	for _, detail := range details {
 		_, err := stmt.ExecContext(
 			ctx,
-			detail.MatchingResultID,
+			detail.MatchingResultId,
 			detail.FieldName,
 			detail.CustomerValue,
 			detail.WatchlistValue,
@@ -127,7 +127,7 @@ func (r sqlMatchingDetailsRepository) SaveBatch(ctx context.Context, batchID str
 
 	for _, detail := range details {
 		_, err = stmt.Exec(
-			detail.MatchingResultID,
+			detail.MatchingResultId,
 			detail.FieldName,
 			detail.CustomerValue,
 			detail.WatchlistValue,

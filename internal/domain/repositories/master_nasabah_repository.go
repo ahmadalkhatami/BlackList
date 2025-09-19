@@ -63,8 +63,8 @@ func (r sqlMasterNasabahRepository) Load(ctx context.Context, opts ...NasabahOpt
 	for rows.Next() {
 		var rec models.MasterNasabah
 		if err := rows.Scan(
-			&rec.Id,
-			&rec.CIFNumber,
+			&rec.ID,
+			&rec.CifNumber,
 			&rec.NamaNasabah,
 			&rec.TempatLahir,
 			&rec.TanggalLahir,

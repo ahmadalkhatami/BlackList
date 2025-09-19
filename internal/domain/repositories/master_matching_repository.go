@@ -81,9 +81,9 @@ func (r sqlMasterMatchingRepository) Load(ctx context.Context, opts ...MasterMat
 	for rows.Next() {
 		var rec models.MasterMatching
 		if err := rows.Scan(
-			&rec.Id,
+			&rec.ID,
 			&rec.WatchlistSource,
-			&rec.Type,
+			&rec.IsIndividual,
 			&rec.IsActive,
 		); err != nil {
 			return nil, err

@@ -51,11 +51,11 @@ func (r sqlProcessLogRepository) Save(processLog []models.ProcessingLog) error {
 
 	for _, res := range processLog {
 		_, err = stmt.Exec(
-			res.BatchID,
-			res.LogLevel,
-			res.LogMessage,
-			res.ErrorDetail,
-			res.LogTime,
+			res.GetBatchID(),
+			res.GetLogLevel(),
+			res.GetLogMessage(),
+			res.GetErrorDetails(),
+			res.GetLogTime(),
 		)
 		if err != nil {
 			return err

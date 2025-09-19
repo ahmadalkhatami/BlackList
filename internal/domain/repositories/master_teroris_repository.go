@@ -70,7 +70,7 @@ func (r sqlMasterTerorisRepository) Load(ctx context.Context, opts ...MasterTero
 	for rows.Next() {
 		var rec models.MasterTeroris
 		if err := rows.Scan(
-			&rec.Id,
+			&rec.ID,
 			&rec.Nama,
 			&rec.Alias1,
 			&rec.Alias2,

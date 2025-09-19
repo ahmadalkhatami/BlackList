@@ -1,10 +1,10 @@
 package models
 
 type JoinedMatchingConfig struct {
-	Id                string
+	Id                int64
+	MatchingId        int64
 	WatchlistSource   string
 	Type              bool
-	MatchingId        string
 	FieldName         string
 	FieldWeight       float64
 	MatchingAlgorithm string

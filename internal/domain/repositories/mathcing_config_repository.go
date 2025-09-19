@@ -70,8 +70,8 @@ func (r *sqlMasterMatchingConfigRepository) Load(ctx context.Context, opts ...Ma
 	for rows.Next() {
 		var rec models.MasterMatchingConfig
 		if err := rows.Scan(
-			&rec.Id,
-			&rec.MatchingId,
+			&rec.ID,
+			&rec.MatchingID,
 			&rec.FieldName,
 			&rec.FieldWeight,
 			&rec.MatchingAlgorithm,

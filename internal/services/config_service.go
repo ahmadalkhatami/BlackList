@@ -86,13 +86,15 @@ func (s *systemConfigService) loadJoined(
 
 	matchingMap := make(map[string]models.MasterMatching, len(matchingList))
 	for _, m := range matchingList {
-		matchingMap[m.Id] = m
+		matchingMap[strconv.FormatInt(m.GetID(), 10)] = m
 	}
 
 	result := utils.MapSlice2(
 		configList,
 		matchingMap,
-		func(c models.MasterMatchingConfig) string { return c.MatchingId },
+		func(c models.MasterMatchingConfig) string {
+			return strconv.FormatInt(c.GetMatchingID(), 10)
+		},
 		MapConfigMatching,
 	)
 
@@ -101,14 +103,14 @@ func (s *systemConfigService) loadJoined(
 
 func MapConfigMatching(c models.MasterMatchingConfig, m models.MasterMatching) models.JoinedMatchingConfig {
 	return models.JoinedMatchingConfig{
-		Id:                c.Id,
-		MatchingId:        c.MatchingId,
-		FieldName:         c.FieldName,
-		FieldWeight:       c.FieldWeight,
-		WatchlistSource:   m.WatchlistSource,
-		Type:              m.Type,
-		MatchingAlgorithm: c.MatchingAlgorithm,
-		IsActive:          c.IsActive && m.IsActive,
+		Id:                c.GetID(),
+		MatchingId:        c.GetMatchingID(),
+		FieldName:         *c.GetFieldName(),
+		FieldWeight:       *c.GetFieldWeight(),
+		WatchlistSource:   *m.GetWatchlistSource(),
+		Type:              *m.GetIsIndividual(),
+		MatchingAlgorithm: *c.GetMatchingAlgorithm(),
+		IsActive:          *c.GetIsActive() && *m.GetIsActive(),
 	}
 }
 

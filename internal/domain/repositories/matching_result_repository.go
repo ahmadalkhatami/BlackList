@@ -43,11 +43,11 @@ func (r *sqlMatchingResultRepository) Load(ctx context.Context, query *string) (
 	for rows.Next() {
 		var rec models.MatchingResult
 		if err := rows.Scan(
-			&rec.ID,
-			&rec.BatchID,
-			&rec.CIFNumber,
+			&rec.Id,
+			&rec.BatchId,
+			&rec.CifNumber,
 			&rec.CustomerName,
-			&rec.WatchlistID,
+			&rec.WatchlistId,
 			&rec.WatchlistSource,
 			&rec.SimilarityScore,
 			&rec.Status,
@@ -89,10 +89,10 @@ func (r *sqlMatchingResultRepository) Save(ctx context.Context, results []models
 	for _, res := range results {
 		if _, err := stmt.ExecContext(
 			ctx,
-			res.BatchID,
-			res.CIFNumber,
+			res.BatchId,
+			res.CifNumber,
 			res.CustomerName,
-			res.WatchlistID,
+			res.WatchlistId,
 			res.WatchlistSource,
 			res.SimilarityScore,
 			res.Status,
@@ -137,15 +137,15 @@ func (r *sqlMatchingResultRepository) SaveBatch(ctx context.Context, batchID str
 
 	for _, res := range results {
 		var customerName sql.NullString
-		if res.CustomerName != "" {
-			customerName = sql.NullString{String: res.CustomerName, Valid: true}
+		if res.CustomerName != nil {
+			customerName = sql.NullString{String: *res.CustomerName, Valid: true}
 		}
 
 		if _, err := stmt.Exec(
 			batchID,
-			res.CIFNumber,
+			res.CifNumber,
 			customerName,
-			res.WatchlistID,
+			res.WatchlistId,
 			res.WatchlistSource,
 			res.SimilarityScore,
 			res.Status,

@@ -55,7 +55,7 @@ func (a *app) Start() error {
 	debug := utils.IsDebugMode()
 	if debug {
 		for _, r := range results.MatchResult {
-			fmt.Printf("CIF: %s | Watchlist: %d | Score: %.2f\n", r.CIFNumber, r.WatchlistID, r.SimilarityScore)
+			fmt.Printf("CIF: %s | Watchlist: %d | Score: %.2f\n", *r.GetCifNumber(), *r.GetWatchlistId(), *r.GetSimilarityScore())
 		}
 	}
 

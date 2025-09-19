@@ -67,7 +67,7 @@ func (r sqlMasterLocalBlacklistRepository) Load(ctx context.Context, opts ...Loc
 	for rows.Next() {
 		var rec models.MasterLocalBlacklist
 		if err := rows.Scan(
-			&rec.Id,
+			&rec.ID,
 			&rec.Nama,
 			&rec.Alias1,
 			&rec.Alias2,
