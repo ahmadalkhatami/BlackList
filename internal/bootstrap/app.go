@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"BlackListWorker/config"
 	"BlackListWorker/internal/db"
+	"BlackListWorker/internal/utils"
 	"context"
 	"database/sql"
 	"fmt"
@@ -51,8 +52,11 @@ func (a *app) Start() error {
 	results := container.Match.GetResults()
 	fmt.Printf("✅ Total match: %d | Waktu proses: %s\n", len(results.MatchResult), duration)
 
-	for _, r := range results.MatchResult {
-		fmt.Printf("CIF: %s | Watchlist: %d | Score: %.2f\n", r.CIFNumber, r.WatchlistID, r.SimilarityScore)
+	debug := utils.IsDebugMode()
+	if debug {
+		for _, r := range results.MatchResult {
+			fmt.Printf("CIF: %s | Watchlist: %d | Score: %.2f\n", r.CIFNumber, r.WatchlistID, r.SimilarityScore)
+		}
 	}
 
 	fmt.Printf("⏱️ Matching selesai dalam: %s\n", duration)
