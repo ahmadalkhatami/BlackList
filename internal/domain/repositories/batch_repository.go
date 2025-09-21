@@ -24,43 +24,70 @@ func NewSQLBatchProcessingRepository(db *sql.DB) BatchProcessingRepository {
 }
 
 func (r *sqlBatchProcessingRepository) Create(batch *models.BatchProcessing) (int64, error) {
+	ctx := context.Background()
+
+	batchID, err := r.GetSequencedId(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get sequenced id: %w", err)
+	}
+
 	query := `
-		DECLARE @NewId BIGINT = NEXT VALUE FOR Seq_BatchProcessing;
 		INSERT INTO BATCH_PROCESSING
 			(Id, ProcessType, Status, TotalRecords, ProcessedRecords, MatchedRecords, StartTime, InitiatedBy, FilePath)
 		VALUES
-			(@NewId, ?, 'running', ?, 0, 0, GETDATE(), ?, ?);
-		SELECT @NewId;
+			(@Id, @ProcessType, 'running', @TotalRecords, 0, 0, GETDATE(), @InitiatedBy, @FilePath);
 	`
 
-	var id int64
-	err := r.DB.QueryRow(query,
-		batch.ProcessType,
-		batch.TotalRecords,
-		batch.InitiatedBy,
-		batch.FilePath,
-	).Scan(&id)
+	stmt, err := r.DB.PrepareContext(ctx, query)
+	if err != nil {
+		return 0, fmt.Errorf("failed to prepare statement: %w", err)
+	}
+	defer stmt.Close()
+
+	_, err = stmt.ExecContext(ctx,
+		sql.Named("Id", batchID),
+		sql.Named("ProcessType", batch.ProcessType),
+		sql.Named("TotalRecords", batch.TotalRecords),
+		sql.Named("InitiatedBy", batch.InitiatedBy),
+		sql.Named("FilePath", batch.FilePath),
+	)
 	if err != nil {
 		return 0, fmt.Errorf("failed to insert batch: %w", err)
 	}
-	return id, nil
+
+	return batchID, nil
 }
 
-// Update batch status → completed / failed
 func (r *sqlBatchProcessingRepository) UpdateStatus(batchID int64, status string, processed, matched int, errMsg string) error {
+	ctx := context.Background()
+
 	query := `
 		UPDATE BATCH_PROCESSING
-		SET Status = ?,
-			ProcessedRecords = ?,
-			MatchedRecords = ?,
+		SET Status = @Status,
+			ProcessedRecords = @ProcessedRecords,
+			MatchedRecords = @MatchedRecords,
 			EndTime = GETDATE(),
-			ErrorMessage = ?
-		WHERE Id = ?
+			ErrorMessage = @ErrorMessage
+		WHERE Id = @Id
 	`
-	_, err := r.DB.Exec(query, status, processed, matched, errMsg, batchID)
+
+	stmt, err := r.DB.PrepareContext(ctx, query)
+	if err != nil {
+		return fmt.Errorf("failed to prepare statement: %w", err)
+	}
+	defer stmt.Close()
+
+	_, err = stmt.ExecContext(ctx,
+		sql.Named("Status", status),
+		sql.Named("ProcessedRecords", processed),
+		sql.Named("MatchedRecords", matched),
+		sql.Named("ErrorMessage", errMsg),
+		sql.Named("Id", batchID),
+	)
 	if err != nil {
 		return fmt.Errorf("failed to update batch status: %w", err)
 	}
+
 	return nil
 }
 
