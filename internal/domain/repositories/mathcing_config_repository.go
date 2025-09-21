@@ -85,14 +85,6 @@ func (r *sqlMasterMatchingConfigRepository) Load(ctx context.Context, opts ...Ma
 	return records, nil
 }
 
-func buildArgs(f *MasterMatchingConfigFilter) []interface{} {
-	var args []interface{}
-	if f.MatchingID != nil {
-		args = append(args, *f.MatchingID)
-	}
-	return args
-}
-
 /*
 ctx := context.Background()
 

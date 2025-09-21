@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"BlackListWorker/internal/domain/models"
@@ -148,6 +148,17 @@ func runAdaptiveMatch(
 
 	fmt.Println("🐢 Resource terbatas → gunakan serial matching")
 	return runSerialMatch(ctx, source, nasabahSvc, configSvc, loadIndividu, loadCorporate)
+}
+
+var resultIDCounter int64 = 0
+var detailIDCounter int64 = 0
+
+func generateResultID() int64 {
+	return atomic.AddInt64(&resultIDCounter, 1)
+}
+
+func generateDetailID() int64 {
+	return atomic.AddInt64(&detailIDCounter, 1)
 }
 
 func runParallelMatch(
@@ -297,21 +308,24 @@ func matchMaster(
 					continue
 				}
 
-				fieldLower := strings.ToLower(cfg.FieldName)
-				var custVal string
-				if strings.HasPrefix(fieldLower, "alias") {
-					custVal = cif.NamaNasabah
-				} else {
-					custVal = utils.GetCIFValueByField(cif, cfg.FieldName)
-				}
+				// fieldLower := strings.ToLower(cfg.FieldName)
+				// var custVal string
+				// if strings.HasPrefix(fieldLower, "alias") {
+				// 	custVal = cif.NamaNasabah
+				// } else {
+				// 	custVal = utils.GetCIFValueByField(cif, cfg.FieldName)
+				// }
 
-				var wlValues []string
-				switch fieldLower {
-				case "nama", "namanasabah":
-					wlValues = append([]string{wl.Nama}, wl.Aliases...)
-				default:
-					wlValues = utils.GetWatchlistValuesByField(wl, cfg.FieldName)
-				}
+				// var wlValues []string
+				// switch fieldLower {
+				// case "nama", "namanasabah":
+				// 	wlValues = append([]string{wl.Nama}, wl.Aliases...)
+				// default:
+				// 	wlValues = utils.GetWatchlistValuesByField(wl, cfg.FieldName)
+				// }
+
+				custVal := utils.GetCIFValueByField(cif, cfg.FieldName)
+				wlValues := utils.GetWatchlistValuesByField(wl, cfg.FieldName)
 
 				if debug {
 					fmt.Printf("\n🔧 DEBUG Field=%s\n", cfg.FieldName)
@@ -355,6 +369,7 @@ func matchMaster(
 			finalScore := totalScore / totalWeight
 
 			result := models.MatchingResult{
+				Id:              generateResultID(),
 				CifNumber:       utils.Ptr(cif.CifNumber),
 				CustomerName:    utils.Ptr(cif.NamaNasabah),
 				WatchlistId:     utils.Ptr(wl.ID),
@@ -366,11 +381,13 @@ func matchMaster(
 				CreatedAt:       utils.Ptr(time.Now()),
 			}
 
-			matchResults = append(matchResults, result)
 			for i := range fieldMatches {
 				fieldMatches[i].MatchingResultId = utils.Ptr(result.Id)
+				fieldMatches[i].Id = generateDetailID()
 				matchDetails = append(matchDetails, fieldMatches[i])
 			}
+
+			matchResults = append(matchResults, result)
 
 			if debug {
 				fmt.Printf("✅ MATCH: CIF=%s vs Watchlist=%s Score=%.2f\n | Threshold : %d",

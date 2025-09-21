@@ -48,7 +48,7 @@ func (m *MasterWatchlist) GetType() *string            { return m.Type }
 func (m *MasterWatchlist) GetCreatedAt() *time.Time    { return m.CreatedAt }
 func (m *MasterWatchlist) GetIsActive() *bool          { return m.IsActive }
 
-/* Getter untuk masing-masing alias */
+/* Getter untuk masing-masing alias
 func (m *MasterWatchlist) GetAlias1() string  { return getAlias(m.Aliases, 0) }
 func (m *MasterWatchlist) GetAlias2() string  { return getAlias(m.Aliases, 1) }
 func (m *MasterWatchlist) GetAlias3() string  { return getAlias(m.Aliases, 2) }
@@ -67,4 +67,4 @@ func getAlias(aliases []string, idx int) string {
 	return ""
 }
 
-/**/
+*/

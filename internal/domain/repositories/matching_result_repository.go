@@ -14,8 +14,10 @@ type MatchingResultRepository interface {
 	Save(ctx context.Context, results []models.MatchingResult) error
 	SaveBatch(ctx context.Context, batchID string, results []models.MatchingResult) error
 	GetLastId(ctx context.Context) (int64, error)
+	// GetLastBatchId(ctx context.Context) (int64, error)
 	ResetSequenceId(ctx context.Context) error
-	ResetSequenceBatchId(ctx context.Context) error
+	// ResetSequenceBatchId(ctx context.Context) error
+	// GetSequencedBatchId(ctx context.Context) (int64, error)
 }
 
 type sqlMatchingResultRepository struct {
@@ -183,22 +185,6 @@ func (r *sqlMatchingResultRepository) GetLastId(ctx context.Context) (int64, err
 	return lastID.Int64, nil
 }
 
-func (r *sqlMatchingResultRepository) GetLastBatchId(ctx context.Context) (int64, error) {
-	var lastID sql.NullInt64
-
-	query := `SELECT MAX(BatchId) FROM MATCHING_RESULTS;`
-	err := r.DB.QueryRowContext(ctx, query).Scan(&lastID)
-	if err != nil {
-		return 0, err
-	}
-
-	if !lastID.Valid {
-		return 0, nil
-	}
-
-	return lastID.Int64, nil
-}
-
 func (r *sqlMatchingResultRepository) ResetSequenceId(ctx context.Context) error {
 
 	lastID, err := r.GetLastId(ctx)
@@ -208,24 +194,6 @@ func (r *sqlMatchingResultRepository) ResetSequenceId(ctx context.Context) error
 
 	nextID := lastID + 1
 	query := fmt.Sprintf(`ALTER SEQUENCE Seq_MatchingResult RESTART WITH %d;`, nextID)
-
-	_, err = r.DB.ExecContext(ctx, query)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (r *sqlMatchingResultRepository) ResetSequenceBatchId(ctx context.Context) error {
-
-	lastID, err := r.GetLastId(ctx)
-	if err != nil {
-		return err
-	}
-
-	nextID := lastID + 1
-	query := fmt.Sprintf(`ALTER SEQUENCE Seq_MatchingBatch RESTART WITH %d;`, nextID)
 
 	_, err = r.DB.ExecContext(ctx, query)
 	if err != nil {

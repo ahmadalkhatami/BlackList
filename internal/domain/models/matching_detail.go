@@ -1,7 +1,7 @@
 package models
 
 type MatchingDetail struct {
-	Id               int
+	Id               int64
 	MatchingResultId *int64
 	FieldName        *string
 	CustomerValue    *string
@@ -11,7 +11,7 @@ type MatchingDetail struct {
 	AlgorithmUsed    *string
 }
 
-func (m MatchingDetail) GetID() int                  { return m.Id }
+func (m MatchingDetail) GetID() int64                { return m.Id }
 func (m MatchingDetail) GetMatchingResultID() *int64 { return m.MatchingResultId }
 func (m MatchingDetail) GetFieldName() *string       { return m.FieldName }
 func (m MatchingDetail) GetCustomerValue() *string   { return m.CustomerValue }

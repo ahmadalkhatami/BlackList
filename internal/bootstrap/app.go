@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"BlackListWorker/config"
 	"BlackListWorker/internal/db"
+	"BlackListWorker/internal/utils"
 
 	// "BlackListWorker/internal/utils"
 	"context"
@@ -21,7 +22,11 @@ func (a *app) Start() error {
 
 	startTime := time.Now()
 
-	// debug := utils.IsDebugMode()
+	debug := utils.IsDebugMode()
+	fmt.Printf("DEBUG MODE: %t\n", debug)
+
+	trigeredBy := utils.TrigeredBy()
+	fmt.Printf("Triggered By: %s\n", trigeredBy)
 
 	cfg := config.Load()
 	conn := db.NewSQLServerConnector(cfg.DBServer, cfg.DBUser, cfg.DBPassword, cfg.DBName)
@@ -40,7 +45,11 @@ func (a *app) Start() error {
 
 	ctx := context.Background()
 
-	db.EnsureSequences(ctx, sqlDB)
+	err = db.EnsureSequences(ctx, sqlDB)
+	if err != nil {
+		fmt.Printf("❌ Error saat membuat sequeence: %v\n", err)
+		return nil
+	}
 
 	err = container.Match.RunMatch(ctx)
 	if err != nil {
@@ -53,18 +62,140 @@ func (a *app) Start() error {
 	results := container.Match.GetResults()
 	fmt.Printf("✅ Total match: %d | Waktu proses: %s\n", len(results.MatchResult), duration)
 
-	// if debug {
-	// 	for _, r := range results.MatchResult {
-	// 		fmt.Printf("CIF: %s | Watchlist: %d | Score: %.2f\n", *r.GetCifNumber(), *r.GetWatchlistId(), *r.GetSimilarityScore())
-	// 	}
-	// 	for _, d := range results.MatchDetail {
-	// 		fmt.Printf("Watchlist Id: %d  | Field Name: %s | Field Weight: %.2f | Score: %.2f\n", d.GetID(), *d.GetFieldName(), *d.GetFieldWeight(), *d.GetFieldScore())
-	// 	}
-	// }
+	fmt.Println("\n--- MATCH RESULTS ---")
+	for _, r := range results.MatchResult {
+		fmt.Printf(
+			"Id=%d | BatchId=%v | CifNumber=%v | CustomerName=%v | WatchlistId=%v | WatchlistSource=%v | SimilarityScore=%v | Status=%v | ProcessDate=%v | ProcessTime=%v | CreatedAt=%v\n",
+			r.Id,
+			func() interface{} {
+				if r.BatchId != nil {
+					return *r.BatchId
+				} else {
+					return "<nil>"
+				}
+			}(),
+			func() interface{} {
+				if r.CifNumber != nil {
+					return *r.CifNumber
+				} else {
+					return "<nil>"
+				}
+			}(),
+			func() interface{} {
+				if r.CustomerName != nil {
+					return *r.CustomerName
+				} else {
+					return "<nil>"
+				}
+			}(),
+			func() interface{} {
+				if r.WatchlistId != nil {
+					return *r.WatchlistId
+				} else {
+					return "<nil>"
+				}
+			}(),
+			func() interface{} {
+				if r.WatchlistSource != nil {
+					return *r.WatchlistSource
+				} else {
+					return "<nil>"
+				}
+			}(),
+			func() interface{} {
+				if r.SimilarityScore != nil {
+					return *r.SimilarityScore
+				} else {
+					return "<nil>"
+				}
+			}(),
+			func() interface{} {
+				if r.Status != nil {
+					return *r.Status
+				} else {
+					return "<nil>"
+				}
+			}(),
+			func() interface{} {
+				if r.ProcessDate != nil {
+					return r.ProcessDate.Format("2006-01-02 15:04:05")
+				} else {
+					return "<nil>"
+				}
+			}(),
+			func() interface{} {
+				if r.ProcessTime != nil {
+					return r.ProcessTime.Format("2006-01-02 15:04:05")
+				} else {
+					return "<nil>"
+				}
+			}(),
+			func() interface{} {
+				if r.CreatedAt != nil {
+					return r.CreatedAt.Format("2006-01-02 15:04:05")
+				} else {
+					return "<nil>"
+				}
+			}(),
+		)
+	}
 
-	// for _, d := range results.MatchDetail {
-	// 	fmt.Printf("Watchlist Id: %d  | Field Name: %s | Field Weight: %.2f | Score: %.2f\n", d.GetID(), *d.GetFieldName(), *d.GetFieldWeight(), *d.GetFieldScore())
-	// }
+	fmt.Println("\n--- MATCH DETAILS ---")
+	for _, d := range results.MatchDetail {
+		fmt.Printf(
+			"Id=%d | MatchingResultId=%v | FieldName=%v | CustomerValue=%v | WatchlistValue=%v | FieldScore=%v | FieldWeight=%v | AlgorithmUsed=%v\n",
+			d.Id,
+			func() interface{} {
+				if d.MatchingResultId != nil {
+					return *d.MatchingResultId
+				} else {
+					return "<nil>"
+				}
+			}(),
+			func() interface{} {
+				if d.FieldName != nil {
+					return *d.FieldName
+				} else {
+					return "<nil>"
+				}
+			}(),
+			func() interface{} {
+				if d.CustomerValue != nil {
+					return *d.CustomerValue
+				} else {
+					return "<nil>"
+				}
+			}(),
+			func() interface{} {
+				if d.WatchlistValue != nil {
+					return *d.WatchlistValue
+				} else {
+					return "<nil>"
+				}
+			}(),
+			func() interface{} {
+				if d.FieldScore != nil {
+					return *d.FieldScore
+				} else {
+					return "<nil>"
+				}
+			}(),
+			func() interface{} {
+				if d.FieldWeight != nil {
+					return *d.FieldWeight
+				} else {
+					return "<nil>"
+				}
+			}(),
+			func() interface{} {
+				if d.AlgorithmUsed != nil {
+					return *d.AlgorithmUsed
+				} else {
+					return "<nil>"
+				}
+			}(),
+		)
+	}
 
 	fmt.Printf("⏱️ Matching selesai dalam: %s\n", duration)
 
