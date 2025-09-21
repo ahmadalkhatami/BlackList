@@ -48,16 +48,16 @@ func (m *MasterWatchlist) GetType() *string            { return m.Type }
 func (m *MasterWatchlist) GetCreatedAt() *time.Time    { return m.CreatedAt }
 func (m *MasterWatchlist) GetIsActive() *bool          { return m.IsActive }
 
-/* Getter untuk masing-masing alias
-func (m *MasterWatchlist) GetAlias1() string { return getAlias(m.Aliases, 0) }
-func (m *MasterWatchlist) GetAlias2() string { return getAlias(m.Aliases, 1) }
-func (m *MasterWatchlist) GetAlias3() string { return getAlias(m.Aliases, 2) }
-func (m *MasterWatchlist) GetAlias4() string { return getAlias(m.Aliases, 3) }
-func (m *MasterWatchlist) GetAlias5() string { return getAlias(m.Aliases, 4) }
-func (m *MasterWatchlist) GetAlias6() string { return getAlias(m.Aliases, 5) }
-func (m *MasterWatchlist) GetAlias7() string { return getAlias(m.Aliases, 6) }
-func (m *MasterWatchlist) GetAlias8() string { return getAlias(m.Aliases, 7) }
-func (m *MasterWatchlist) GetAlias9() string { return getAlias(m.Aliases, 8) }
+/* Getter untuk masing-masing alias */
+func (m *MasterWatchlist) GetAlias1() string  { return getAlias(m.Aliases, 0) }
+func (m *MasterWatchlist) GetAlias2() string  { return getAlias(m.Aliases, 1) }
+func (m *MasterWatchlist) GetAlias3() string  { return getAlias(m.Aliases, 2) }
+func (m *MasterWatchlist) GetAlias4() string  { return getAlias(m.Aliases, 3) }
+func (m *MasterWatchlist) GetAlias5() string  { return getAlias(m.Aliases, 4) }
+func (m *MasterWatchlist) GetAlias6() string  { return getAlias(m.Aliases, 5) }
+func (m *MasterWatchlist) GetAlias7() string  { return getAlias(m.Aliases, 6) }
+func (m *MasterWatchlist) GetAlias8() string  { return getAlias(m.Aliases, 7) }
+func (m *MasterWatchlist) GetAlias9() string  { return getAlias(m.Aliases, 8) }
 func (m *MasterWatchlist) GetAlias10() string { return getAlias(m.Aliases, 9) }
 
 func getAlias(aliases []string, idx int) string {
@@ -65,4 +65,6 @@ func getAlias(aliases []string, idx int) string {
 		return aliases[idx]
 	}
 	return ""
-} */
+}
+
+/**/

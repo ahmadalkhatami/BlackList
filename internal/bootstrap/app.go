@@ -3,7 +3,8 @@ package bootstrap
 import (
 	"BlackListWorker/config"
 	"BlackListWorker/internal/db"
-	"BlackListWorker/internal/utils"
+
+	// "BlackListWorker/internal/utils"
 	"context"
 	"database/sql"
 	"fmt"
@@ -18,6 +19,10 @@ func NewApp() *app {
 
 func (a *app) Start() error {
 
+	startTime := time.Now()
+
+	// debug := utils.IsDebugMode()
+
 	cfg := config.Load()
 	conn := db.NewSQLServerConnector(cfg.DBServer, cfg.DBUser, cfg.DBPassword, cfg.DBName)
 
@@ -31,13 +36,12 @@ func (a *app) Start() error {
 		return err
 	}
 
-	// 2️⃣ Buat container (service & matchers)
 	container := NewContainer(sqlDB)
 
-	startTime := time.Now()
-
-	// 3️⃣ Jalankan match service
 	ctx := context.Background()
+
+	db.EnsureSequences(ctx, sqlDB)
+
 	err = container.Match.RunMatch(ctx)
 	if err != nil {
 		fmt.Printf("❌ Error saat matching: %v\n", err)
@@ -46,16 +50,21 @@ func (a *app) Start() error {
 
 	duration := time.Since(startTime)
 
-	// 4️⃣ Ambil hasil matching
 	results := container.Match.GetResults()
 	fmt.Printf("✅ Total match: %d | Waktu proses: %s\n", len(results.MatchResult), duration)
 
-	debug := utils.IsDebugMode()
-	if debug {
-		for _, r := range results.MatchResult {
-			fmt.Printf("CIF: %s | Watchlist: %d | Score: %.2f\n", *r.GetCifNumber(), *r.GetWatchlistId(), *r.GetSimilarityScore())
-		}
-	}
+	// if debug {
+	// 	for _, r := range results.MatchResult {
+	// 		fmt.Printf("CIF: %s | Watchlist: %d | Score: %.2f\n", *r.GetCifNumber(), *r.GetWatchlistId(), *r.GetSimilarityScore())
+	// 	}
+	// 	for _, d := range results.MatchDetail {
+	// 		fmt.Printf("Watchlist Id: %d  | Field Name: %s | Field Weight: %.2f | Score: %.2f\n", d.GetID(), *d.GetFieldName(), *d.GetFieldWeight(), *d.GetFieldScore())
+	// 	}
+	// }
+
+	// for _, d := range results.MatchDetail {
+	// 	fmt.Printf("Watchlist Id: %d  | Field Name: %s | Field Weight: %.2f | Score: %.2f\n", d.GetID(), *d.GetFieldName(), *d.GetFieldWeight(), *d.GetFieldScore())
+	// }
 
 	fmt.Printf("⏱️ Matching selesai dalam: %s\n", duration)
 

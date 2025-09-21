@@ -5,7 +5,6 @@ import (
 	"BlackListWorker/internal/utils"
 	"context"
 	"database/sql"
-	"fmt"
 )
 
 type MasterTerorisFilter struct {
@@ -91,7 +90,7 @@ func (r sqlMasterTerorisRepository) Load(ctx context.Context, opts ...MasterTero
 		records = append(records, rec)
 	}
 
-	fmt.Printf("🔍 Load Teroris: %d record(s) loaded\n", len(records))
+	// fmt.Printf("🔍 Load Teroris: %d record(s) loaded\n", len(records))
 	return records, nil
 }
 

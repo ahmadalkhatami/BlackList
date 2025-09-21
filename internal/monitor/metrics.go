@@ -9,10 +9,10 @@ type MetricCollector interface {
 	Collect() Metric
 }
 
-// type MetricHandler interface {
-// 	Handle(Metric)
-// }
-
 type MonitorServiceInterface interface {
 	Start()
 }
+
+// type MetricHandler interface {
+// 	Handle(Metric)
+// }

@@ -2,7 +2,6 @@ package utils
 
 import (
 	"BlackListWorker/internal/domain/models"
-	"strconv"
 	"strings"
 )
 
@@ -43,8 +42,7 @@ func GetCIFValueByField(cif models.MasterNasabah, field string) string {
 func GetWatchlistValuesByField(wl models.MasterWatchlist, field string) []string {
 	field = strings.ToLower(field)
 
-	switch field {
-	case "nama":
+	if field == "nama" {
 		values := []string{}
 		if strings.TrimSpace(wl.Nama) != "" {
 			values = append(values, wl.Nama)
@@ -55,44 +53,38 @@ func GetWatchlistValuesByField(wl models.MasterWatchlist, field string) []string
 			}
 		}
 		return values
+	}
 
+	if strings.HasPrefix(field, "alias") {
+		values := []string{}
+		for _, alias := range wl.Aliases {
+			if strings.TrimSpace(alias) != "" {
+				values = append(values, alias)
+			}
+		}
+		return values
+	}
+
+	switch field {
 	case "tempatlahir":
 		if wl.TempatLahir != nil {
 			return []string{*wl.TempatLahir}
 		}
-
 	case "tanggallahir":
 		if wl.TanggalLahir != nil && !wl.TanggalLahir.IsZero() {
 			return []string{wl.TanggalLahir.Format("2006-01-02")}
 		}
-
 	case "ktp":
 		if wl.KTP != nil {
 			return []string{*wl.KTP}
 		}
-
 	case "npwp":
 		if wl.NPWP != nil {
 			return []string{*wl.NPWP}
 		}
-
 	case "nopaspor":
 		if wl.NoPaspor != nil {
 			return []string{*wl.NoPaspor}
-		}
-
-	default:
-		// handle alias1..alias10
-		if strings.HasPrefix(field, "alias") {
-			numStr := strings.TrimPrefix(field, "alias")
-			if idx, err := strconv.Atoi(numStr); err == nil {
-				if idx > 0 && idx <= len(wl.Aliases) {
-					val := wl.Aliases[idx-1] // karena alias1 = Aliases[0]
-					if strings.TrimSpace(val) != "" {
-						return []string{val}
-					}
-				}
-			}
 		}
 	}
 

@@ -1,4 +1,4 @@
-package textutil
+package utils
 
 import (
 	"reflect"
@@ -11,7 +11,6 @@ func CombineAliases(v interface{}, prefixField string) []string {
 		return nil
 	}
 
-	// Kalau pointer, dereference
 	if val.Kind() == reflect.Ptr {
 		val = val.Elem()
 	}
@@ -26,26 +25,34 @@ func CombineAliases(v interface{}, prefixField string) []string {
 	for i := 0; i < val.NumField(); i++ {
 		field := typ.Field(i)
 
-		// Skip field unexported
 		if field.PkgPath != "" {
 			continue
 		}
 
-		// Cek method getter dulu: Get + field.Name
 		methodName := "Get" + field.Name
 		method := reflect.ValueOf(v).MethodByName(methodName)
 
 		var s string
-		if method.IsValid() && method.Type().NumIn() == 0 && method.Type().NumOut() == 1 && method.Type().Out(0).Kind() == reflect.String {
-			// Ambil dari getter
+		if method.IsValid() &&
+			method.Type().NumIn() == 0 &&
+			method.Type().NumOut() == 1 &&
+			method.Type().Out(0).Kind() == reflect.String {
+
 			out := method.Call(nil)
 			s = out[0].String()
-		} else if strings.HasPrefix(field.Name, prefixField) && val.Field(i).Kind() == reflect.String {
-			// Ambil langsung dari field
-			s = val.Field(i).String()
+		} else if strings.HasPrefix(field.Name, prefixField) {
+			f := val.Field(i)
+			switch f.Kind() {
+			case reflect.String:
+				s = f.String()
+			case reflect.Ptr:
+				if !f.IsNil() && f.Elem().Kind() == reflect.String {
+					s = f.Elem().String()
+				}
+			}
 		}
 
-		if s != "" {
+		if strings.TrimSpace(s) != "" {
 			aliases = append(aliases, s)
 		}
 	}

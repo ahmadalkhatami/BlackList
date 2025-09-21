@@ -4,6 +4,7 @@ import (
 	"BlackListWorker/internal/domain/models"
 	"context"
 	"database/sql"
+	"fmt"
 
 	mssql "github.com/denisenkom/go-mssqldb"
 )
@@ -12,6 +13,8 @@ type MatchingDetailsRepository interface {
 	Load(ctx context.Context) ([]models.MatchingDetail, error)
 	Save(ctx context.Context, details []models.MatchingDetail) error
 	SaveBatch(ctx context.Context, batchID string, details []models.MatchingDetail) error
+	GetLastId(ctx context.Context) (int64, error)
+	ResetSequenceId(ctx context.Context) error
 }
 
 type sqlMatchingDetailsRepository struct {
@@ -23,7 +26,7 @@ func NewSQLMatchingDetailsRepository(db *sql.DB) MatchingDetailsRepository {
 }
 
 // Query sudah fixed di sini, nggak perlu parametris
-func (r sqlMatchingDetailsRepository) Load(ctx context.Context) ([]models.MatchingDetail, error) {
+func (r *sqlMatchingDetailsRepository) Load(ctx context.Context) ([]models.MatchingDetail, error) {
 
 	query := `
 		SELECT 
@@ -65,7 +68,7 @@ func (r sqlMatchingDetailsRepository) Load(ctx context.Context) ([]models.Matchi
 	return records, nil
 }
 
-func (r sqlMatchingDetailsRepository) Save(ctx context.Context, details []models.MatchingDetail) error {
+func (r *sqlMatchingDetailsRepository) Save(ctx context.Context, details []models.MatchingDetail) error {
 	tx, err := r.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -104,7 +107,7 @@ func (r sqlMatchingDetailsRepository) Save(ctx context.Context, details []models
 	return tx.Commit()
 }
 
-func (r sqlMatchingDetailsRepository) SaveBatch(ctx context.Context, batchID string, details []models.MatchingDetail) error {
+func (r *sqlMatchingDetailsRepository) SaveBatch(ctx context.Context, batchID string, details []models.MatchingDetail) error {
 	tx, err := r.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -154,4 +157,38 @@ func (r sqlMatchingDetailsRepository) SaveBatch(ctx context.Context, batchID str
 	}
 
 	return tx.Commit()
+}
+
+func (r *sqlMatchingDetailsRepository) GetLastId(ctx context.Context) (int64, error) {
+	var lastID sql.NullInt64
+
+	query := `SELECT MAX(Id) FROM MATCHING_DETAILS;`
+	err := r.DB.QueryRowContext(ctx, query).Scan(&lastID)
+	if err != nil {
+		return 0, err
+	}
+
+	if !lastID.Valid {
+		return 0, nil
+	}
+
+	return lastID.Int64, nil
+}
+
+func (r *sqlMatchingDetailsRepository) ResetSequenceId(ctx context.Context) error {
+
+	lastID, err := r.GetLastId(ctx)
+	if err != nil {
+		return err
+	}
+
+	nextID := lastID + 1
+	query := fmt.Sprintf(`ALTER SEQUENCE Seq_MatchingDetail RESTART WITH %d;`, nextID)
+
+	_, err = r.DB.ExecContext(ctx, query)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

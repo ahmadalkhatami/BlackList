@@ -3,7 +3,7 @@ package services
 import (
 	"BlackListWorker/internal/domain/models"
 	"BlackListWorker/internal/domain/repositories"
-	"BlackListWorker/pkg/textutil"
+	"BlackListWorker/internal/utils"
 	"context"
 )
 
@@ -191,10 +191,11 @@ func (w *WatchlistServiceImpl) LoadAllWatchlists(ctx context.Context) ([]models.
 
 // ==================== Mapper ====================
 func ToWatchlist(item models.Watchlistable) models.MasterWatchlist {
+	// fmt.Printf(`WatchList: %v+\n`, item)
 	return models.MasterWatchlist{
 		ID:           item.GetID(),
 		Nama:         item.GetNama(),
-		Aliases:      textutil.CombineAliases(item, "Alias"),
+		Aliases:      utils.CombineAliases(item, "Alias"),
 		TempatLahir:  item.GetTempatLahir(),
 		TanggalLahir: item.GetTanggalLahir(),
 		KTP:          item.GetKTP(),

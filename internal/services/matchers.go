@@ -4,82 +4,135 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
 	"BlackListWorker/internal/domain/models"
 	"BlackListWorker/internal/domain/similarity"
+	"BlackListWorker/internal/monitor"
 	"BlackListWorker/internal/utils"
 )
 
-// ===== DTTOT Matcher =====
-type DTTOTMatcher struct {
-	nasabahSvc   MasterNasabahService
-	watchlistSvc WatchlistService
-	configSvc    SystemConfigService
+type GenericMatcher struct {
+	source        string
+	nasabahSvc    MasterNasabahService
+	watchlistSvc  WatchlistService
+	configSvc     SystemConfigService
+	loadIndividu  func(context.Context) ([]models.MasterWatchlist, error)
+	loadCorporate func(context.Context) ([]models.MasterWatchlist, error)
 }
 
-func NewDTTOTMatcher(nasabah MasterNasabahService, wl WatchlistService, cfg SystemConfigService) *DTTOTMatcher {
-	return &DTTOTMatcher{nasabahSvc: nasabah, watchlistSvc: wl, configSvc: cfg}
+func NewGenericMatcher(
+	source string,
+	nasabahSvc MasterNasabahService,
+	watchlistSvc WatchlistService,
+	configSvc SystemConfigService,
+	loadIndividu func(context.Context) ([]models.MasterWatchlist, error),
+	loadCorporate func(context.Context) ([]models.MasterWatchlist, error),
+) *GenericMatcher {
+	return &GenericMatcher{
+		source: source, nasabahSvc: nasabahSvc,
+		watchlistSvc: watchlistSvc, configSvc: configSvc,
+		loadIndividu: loadIndividu, loadCorporate: loadCorporate,
+	}
 }
 
-func (m *DTTOTMatcher) Source() string { return "MASTER_TERORIS" }
+func (m *GenericMatcher) Source() string { return m.source }
 
-func (m *DTTOTMatcher) Match(ctx context.Context) (*MatchResults, error) {
+func (m *GenericMatcher) Match(ctx context.Context) (*MatchResults, error) {
 	start := time.Now()
 	defer func() {
 		fmt.Printf("⏱️ %sMatcher selesai dalam %v\n", m.Source(), time.Since(start))
 	}()
-
-	return runParallelMatch(ctx, m.Source(), m.nasabahSvc, m.configSvc, m.watchlistSvc.LoadDTTOTIndividu, m.watchlistSvc.LoadDTTOTCorporate)
+	return runAdaptiveMatch(ctx, m.Source(), m.nasabahSvc, m.configSvc, m.loadIndividu, m.loadCorporate)
 }
 
-// ===== WMD Matcher =====
-type WMDMatcher struct {
-	nasabahSvc   MasterNasabahService
-	watchlistSvc WatchlistService
-	configSvc    SystemConfigService
+func NewDTTOTMatcher(nasabah MasterNasabahService, wl WatchlistService, cfg SystemConfigService) *GenericMatcher {
+	return NewGenericMatcher("MASTER_TERORIS", nasabah, wl, cfg, wl.LoadDTTOTIndividu, wl.LoadDTTOTCorporate)
 }
 
-func NewWMDMatcher(nasabah MasterNasabahService, wl WatchlistService, cfg SystemConfigService) *WMDMatcher {
-	return &WMDMatcher{nasabahSvc: nasabah, watchlistSvc: wl, configSvc: cfg}
+func NewWMDMatcher(nasabah MasterNasabahService, wl WatchlistService, cfg SystemConfigService) *GenericMatcher {
+	return NewGenericMatcher("MASTER_WMD", nasabah, wl, cfg, wl.LoadWMDIndividu, wl.LoadWMDCorporate)
 }
 
-func (m *WMDMatcher) Source() string { return "MASTER_WMD" }
-
-func (m *WMDMatcher) Match(ctx context.Context) (*MatchResults, error) {
-	start := time.Now()
-	defer func() {
-		fmt.Printf("⏱️ %sMatcher selesai dalam %v\n", m.Source(), time.Since(start))
-	}()
-
-	return runParallelMatch(ctx, m.Source(), m.nasabahSvc, m.configSvc, m.watchlistSvc.LoadWMDIndividu, m.watchlistSvc.LoadWMDCorporate)
+func NewLocalBlacklistMatcher(nasabah MasterNasabahService, wl WatchlistService, cfg SystemConfigService) *GenericMatcher {
+	return NewGenericMatcher("MASTER_LOCAL_BLACKLIST", nasabah, wl, cfg, wl.LoadLocalBlacklistIndividu, wl.LoadLocalBlacklistCorporate)
 }
 
-// ===== Local Blacklist Matcher =====
-type LocalBlacklistMatcher struct {
-	nasabahSvc   MasterNasabahService
-	watchlistSvc WatchlistService
-	configSvc    SystemConfigService
+type MatchConfig struct {
+	Threshold float64
+	Algorithm string
+	SimCalc   similarity.Calculator
+	Individu  []models.JoinedMatchingConfig
+	Corporate []models.JoinedMatchingConfig
 }
 
-func NewLocalBlacklistMatcher(nasabah MasterNasabahService, wl WatchlistService, cfg SystemConfigService) *LocalBlacklistMatcher {
-	return &LocalBlacklistMatcher{nasabahSvc: nasabah, watchlistSvc: wl, configSvc: cfg}
+func loadMatchConfig(ctx context.Context, cfgSvc SystemConfigService) (*MatchConfig, error) {
+	threshold, err := cfgSvc.GetThreshold(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	algorithm, err := cfgSvc.GetMatchingAlgorithm(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	simCalc, err := similarity.NewCalculator(similarity.Algorithm(algorithm))
+	if err != nil {
+		return nil, err
+	}
+
+	cfgIndividu, err := cfgSvc.LoadIndividu(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	cfgCorporate, err := cfgSvc.LoadCorporate(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return &MatchConfig{
+		Threshold: threshold,
+		Algorithm: algorithm,
+		SimCalc:   simCalc,
+		Individu:  cfgIndividu,
+		Corporate: cfgCorporate,
+	}, nil
 }
 
-func (m *LocalBlacklistMatcher) Source() string { return "MASTER_LOCAL_BLACKLIST" }
+func systemHealthy() bool {
+	cpuCollector := monitor.NewCPUCollector(0) // interval = 0 → snapshot instan
+	memCollector := monitor.NewMemoryCollector()
+	threadCollector := monitor.NewThreadCollector()
 
-func (m *LocalBlacklistMatcher) Match(ctx context.Context) (*MatchResults, error) {
-	start := time.Now()
-	defer func() {
-		fmt.Printf("⏱️ %sMatcher selesai dalam %v\n", m.Source(), time.Since(start))
-	}()
+	_, cpuVal := cpuCollector.Collect()
+	_, memVal := memCollector.Collect()
+	_, threads := threadCollector.Collect()
 
-	return runParallelMatch(ctx, m.Source(), m.nasabahSvc, m.configSvc, m.watchlistSvc.LoadLocalBlacklistIndividu, m.watchlistSvc.LoadLocalBlacklistCorporate)
+	cpu := cpuVal.(float64)
+	mem := memVal.(float64)
+	goroutines := threads.(int)
+
+	if cpu > 80.0 {
+		fmt.Printf("⚠️ CPU tinggi: %.2f%%\n", cpu)
+		return false
+	}
+	if mem > 80.0 {
+		fmt.Printf("⚠️ Memory tinggi: %.2f%%\n", mem)
+		return false
+	}
+	if goroutines > 500 {
+		fmt.Printf("⚠️ Goroutine terlalu banyak: %d\n", goroutines)
+		return false
+	}
+
+	return true
 }
 
-// ===== Helper: Parallel run for Individu & Corporate =====
-func runParallelMatch(
+func runAdaptiveMatch(
 	ctx context.Context,
 	source string,
 	nasabahSvc MasterNasabahService,
@@ -88,49 +141,41 @@ func runParallelMatch(
 	loadCorporate func(context.Context) ([]models.MasterWatchlist, error),
 ) (*MatchResults, error) {
 
+	if systemHealthy() {
+		fmt.Println("🚀 Resource sehat → gunakan parallel matching")
+		return runParallelMatch(ctx, source, nasabahSvc, configSvc, loadIndividu, loadCorporate)
+	}
+
+	fmt.Println("🐢 Resource terbatas → gunakan serial matching")
+	return runSerialMatch(ctx, source, nasabahSvc, configSvc, loadIndividu, loadCorporate)
+}
+
+func runParallelMatch(
+	ctx context.Context,
+	source string,
+	nasabahSvc MasterNasabahService,
+	configSvc SystemConfigService,
+	loadIndividu func(context.Context) ([]models.MasterWatchlist, error),
+	loadCorporate func(context.Context) ([]models.MasterWatchlist, error),
+	// debug bool,
+) (*MatchResults, error) {
+
 	debug := utils.IsDebugMode()
-	fmt.Printf("Is Debug Mode : %t\n", debug)
+	// fmt.Printf("Debug Mode : %t\n", debug)
 
 	var wg sync.WaitGroup
 	resultsChan := make(chan *MatchResults, 2)
 	errChan := make(chan error, 2)
 
-	// threshold & algorithm
-	threshold, err := configSvc.GetThreshold(ctx)
-	if err != nil {
-		return nil, err
-	}
-	fmt.Printf("DEBUG: Loaded Threshold = %0.2f\n", threshold)
-
-	algorithm, err := configSvc.GetMatchingAlgorithm(ctx)
-	if err != nil {
-		return nil, err
-	}
-	fmt.Printf("DEBUG: Loaded Algorthm = %s\n", algorithm)
-
-	simCalc, err := similarity.NewCalculator(similarity.Algorithm(algorithm))
+	cfg, err := loadMatchConfig(ctx, configSvc)
 	if err != nil {
 		return nil, err
 	}
 
-	// config individu & corporate
-	cfgIndividu, err := configSvc.LoadIndividu(ctx)
-	if err != nil {
-		return nil, err
-	}
-	fmt.Printf("DEBUG: Loaded Config Individu = %v \n", cfgIndividu)
-
-	cfgCorporate, err := configSvc.LoadCorporate(ctx)
-	if err != nil {
-		return nil, err
-	}
-	fmt.Printf("DEBUG: Loaded Config Corporate = %v \n", cfgCorporate)
-
-	// run individu
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		res, err := matchMaster(ctx, source, nasabahSvc, cfgIndividu, loadIndividu, simCalc, threshold, algorithm, debug)
+		res, err := matchMaster(ctx, source, nasabahSvc, cfg.Individu, loadIndividu, cfg.SimCalc, cfg.Threshold, cfg.Algorithm, debug)
 		if err != nil {
 			errChan <- err
 			return
@@ -138,11 +183,10 @@ func runParallelMatch(
 		resultsChan <- res
 	}()
 
-	// run corporate
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		res, err := matchMaster(ctx, source, nasabahSvc, cfgCorporate, loadCorporate, simCalc, threshold, algorithm, debug)
+		res, err := matchMaster(ctx, source, nasabahSvc, cfg.Corporate, loadCorporate, cfg.SimCalc, cfg.Threshold, cfg.Algorithm, debug)
 		if err != nil {
 			errChan <- err
 			return
@@ -167,7 +211,41 @@ func runParallelMatch(
 	return &allResults, nil
 }
 
-// ===== Core Matching Logic =====
+func runSerialMatch(
+	ctx context.Context,
+	source string,
+	nasabahSvc MasterNasabahService,
+	configSvc SystemConfigService,
+	loadIndividu func(context.Context) ([]models.MasterWatchlist, error),
+	loadCorporate func(context.Context) ([]models.MasterWatchlist, error),
+) (*MatchResults, error) {
+
+	debug := utils.IsDebugMode()
+
+	cfg, err := loadMatchConfig(ctx, configSvc)
+	if err != nil {
+		return nil, err
+	}
+
+	allResults := &MatchResults{}
+
+	resInd, err := matchMaster(ctx, source, nasabahSvc, cfg.Individu, loadIndividu, cfg.SimCalc, cfg.Threshold, cfg.Algorithm, debug)
+	if err != nil {
+		return nil, err
+	}
+	allResults.MatchResult = append(allResults.MatchResult, resInd.MatchResult...)
+	allResults.MatchDetail = append(allResults.MatchDetail, resInd.MatchDetail...)
+
+	resCorp, err := matchMaster(ctx, source, nasabahSvc, cfg.Corporate, loadCorporate, cfg.SimCalc, cfg.Threshold, cfg.Algorithm, debug)
+	if err != nil {
+		return nil, err
+	}
+	allResults.MatchResult = append(allResults.MatchResult, resCorp.MatchResult...)
+	allResults.MatchDetail = append(allResults.MatchDetail, resCorp.MatchDetail...)
+
+	return allResults, nil
+}
+
 func matchMaster(
 	ctx context.Context,
 	source string,
@@ -188,13 +266,17 @@ func matchMaster(
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("DEBUG: Loaded CIF total = %d\n", len(cifList))
+	if debug {
+		fmt.Printf("DEBUG: Loaded CIF total = %d\n", len(cifList))
+	}
 
 	watchlist, err := loadWatchlist(ctx)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("DEBUG: Loaded Watchlist total = %d\n", len(watchlist))
+	if debug {
+		fmt.Printf("DEBUG: Loaded Watchlist total = %d\n", len(watchlist))
+	}
 
 	var matchResults []models.MatchingResult
 	var matchDetails []models.MatchingDetail
@@ -202,18 +284,8 @@ func matchMaster(
 	for _, cif := range cifList {
 		for _, wl := range watchlist {
 
-			if debug {
-				fmt.Printf("\n🚀 Active Whatchlist: %t | Watchlist Source: %s (Source: %s)\n",
-					*wl.GetIsActive(), *wl.GetSource(), source)
-			}
-
 			if !*wl.GetIsActive() || *wl.GetSource() != source {
 				continue
-			}
-
-			if debug {
-				fmt.Printf("\n🚀 Processing CIF: %s | Watchlist: %s (Source: %s)\n",
-					cif.NamaNasabah, wl.Nama, wl.Source)
 			}
 
 			totalScore := 0.0
@@ -225,8 +297,21 @@ func matchMaster(
 					continue
 				}
 
-				custVal := utils.GetCIFValueByField(cif, cfg.FieldName)
-				wlValues := utils.GetWatchlistValuesByField(wl, cfg.FieldName)
+				fieldLower := strings.ToLower(cfg.FieldName)
+				var custVal string
+				if strings.HasPrefix(fieldLower, "alias") {
+					custVal = cif.NamaNasabah
+				} else {
+					custVal = utils.GetCIFValueByField(cif, cfg.FieldName)
+				}
+
+				var wlValues []string
+				switch fieldLower {
+				case "nama", "namanasabah":
+					wlValues = append([]string{wl.Nama}, wl.Aliases...)
+				default:
+					wlValues = utils.GetWatchlistValuesByField(wl, cfg.FieldName)
+				}
 
 				if debug {
 					fmt.Printf("\n🔧 DEBUG Field=%s\n", cfg.FieldName)
@@ -243,48 +328,31 @@ func matchMaster(
 						maxScore = score
 						bestMatch = wVal
 					}
-
-					if debug {
-						fmt.Printf("      🔍 Compare: '%s' vs '%s' => Score=%.4f\n", custVal, wVal, score)
-					}
 				}
 
 				totalScore += maxScore * cfg.FieldWeight
 				totalWeight += cfg.FieldWeight
 
 				fieldMatches = append(fieldMatches, models.MatchingDetail{
-					FieldName:        utils.Ptr(cfg.FieldName),
-					CustomerValue:    utils.Ptr(custVal),
-					WatchlistValue:   utils.Ptr(bestMatch),
-					FieldScore:       utils.Ptr(maxScore),
-					FieldWeight:      utils.Ptr(cfg.FieldWeight),
-					AlgorithmUsed:    utils.Ptr(algorithm),
-					MatchingResultId: utils.Ptr(wl.ID),
+					FieldName:      utils.Ptr(cfg.FieldName),
+					CustomerValue:  utils.Ptr(custVal),
+					WatchlistValue: utils.Ptr(bestMatch),
+					FieldScore:     utils.Ptr(maxScore),
+					FieldWeight:    utils.Ptr(cfg.FieldWeight),
+					AlgorithmUsed:  utils.Ptr(algorithm),
 				})
 
 				if debug {
-					fmt.Printf("   🔍 Field: %s | CIF: '%s' | WL: '%s' | Score: %.2f | Weight: %.2f\n",
-						cfg.FieldName, custVal, bestMatch, maxScore, cfg.FieldWeight)
+					fmt.Printf("   🔍 Watchlist Id: %d | Field: %s | CIF: '%s' | WL: '%s' | Score: %.2f | Weight: %.2f\n",
+						wl.ID, cfg.FieldName, custVal, bestMatch, maxScore, cfg.FieldWeight)
 				}
-				// if debug {
-				// 	fmt.Printf("   ✅ BestMatch=%q | MaxScore=%.4f (Weighted=%.4f)\n",
-				// 		bestMatch, maxScore, maxScore*cfg.FieldWeight)
-				// }
 			}
 
 			if totalWeight == 0 {
-				if debug {
-					fmt.Println("⚠️ Skip: totalWeight = 0 (no active config)")
-				}
 				continue
 			}
 
 			finalScore := totalScore / totalWeight
-
-			if debug {
-				fmt.Printf("➡️ FinalScore: %.2f / totalWeight: %.2f (Threshold: %.2f)\n",
-					totalScore, totalWeight, threshold)
-			}
 
 			result := models.MatchingResult{
 				CifNumber:       utils.Ptr(cif.CifNumber),
@@ -305,8 +373,8 @@ func matchMaster(
 			}
 
 			if debug {
-				fmt.Printf("✅ MATCH: CIF=%s vs Watchlist=%s Score=%.2f\n",
-					cif.NamaNasabah, wl.Nama, finalScore)
+				fmt.Printf("✅ MATCH: CIF=%s vs Watchlist=%s Score=%.2f\n | Threshold : %d",
+					cif.NamaNasabah, wl.Nama, finalScore, threshold)
 			}
 		}
 	}

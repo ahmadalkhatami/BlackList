@@ -5,7 +5,6 @@ import (
 	"BlackListWorker/internal/utils"
 	"context"
 	"database/sql"
-	"fmt"
 )
 
 type LocalBlacklistFilter struct {
@@ -88,7 +87,6 @@ func (r sqlMasterLocalBlacklistRepository) Load(ctx context.Context, opts ...Loc
 		records = append(records, rec)
 	}
 
-	fmt.Printf("🔍 Load Local Blacklist: %d record(s) loaded\n", len(records))
 	return records, nil
 }
 
