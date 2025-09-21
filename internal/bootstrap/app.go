@@ -18,8 +18,6 @@ func NewApp() *app {
 
 func (a *app) Start() error {
 
-	config.LoadEnv()
-
 	cfg := config.Load()
 	conn := db.NewSQLServerConnector(cfg.DBServer, cfg.DBUser, cfg.DBPassword, cfg.DBName)
 

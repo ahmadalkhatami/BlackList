@@ -97,6 +97,7 @@ func (r sqlMasterWMDRepository) Load(ctx context.Context, opts ...WMDOption) ([]
 		records = append(records, rec)
 	}
 
+	fmt.Printf("🔍 Load WMD: %d record(s) loaded\n", len(records))
 	return records, nil
 }
 

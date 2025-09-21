@@ -210,7 +210,13 @@ func ToWatchlist(item models.Watchlistable) models.MasterWatchlist {
 func ToWatchlistSlice[T any](items []T) []models.MasterWatchlist {
 	result := make([]models.MasterWatchlist, 0, len(items))
 	for i := range items {
-		if wl, ok := any(&items[i]).(models.Watchlistable); ok {
+		var wl models.Watchlistable
+		if v, ok := any(items[i]).(models.Watchlistable); ok { // value
+			wl = v
+		} else if v, ok := any(&items[i]).(models.Watchlistable); ok { // pointer
+			wl = v
+		}
+		if wl != nil {
 			result = append(result, ToWatchlist(wl))
 		}
 	}
@@ -218,10 +224,10 @@ func ToWatchlistSlice[T any](items []T) []models.MasterWatchlist {
 }
 
 // ==================== Loader Generic ====================
-func loadWatchlist[T any](ctx context.Context, loader func(context.Context) ([]T, error)) ([]models.MasterWatchlist, error) {
-	list, err := loader(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return ToWatchlistSlice(list), nil
-}
+// func loadWatchlist[T any](ctx context.Context, loader func(context.Context) ([]T, error)) ([]models.MasterWatchlist, error) {
+// 	list, err := loader(ctx)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	return ToWatchlistSlice(list), nil
+// }

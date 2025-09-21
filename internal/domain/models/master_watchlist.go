@@ -14,10 +14,10 @@ type MasterWatchlist struct {
 	KTP          *string
 	NPWP         *string
 	NoPaspor     *string
-	Source       string
-	Type         string // INDIVIDU | CORPORATE
-	CreatedAt    time.Time
-	IsActive     bool
+	Source       *string
+	Type         *string
+	CreatedAt    *time.Time
+	IsActive     *bool
 }
 
 type Watchlistable interface {
@@ -29,10 +29,10 @@ type Watchlistable interface {
 	GetKTP() *string
 	GetNPWP() *string
 	GetNoPaspor() *string
-	GetSource() string
-	GetType() string
-	GetCreatedAt() time.Time
-	GetIsActive() bool
+	GetSource() *string
+	GetType() *string
+	GetCreatedAt() *time.Time
+	GetIsActive() *bool
 }
 
 func (m *MasterWatchlist) GetID() int64                { return m.ID }
@@ -43,10 +43,10 @@ func (m *MasterWatchlist) GetTanggalLahir() *time.Time { return m.TanggalLahir }
 func (m *MasterWatchlist) GetKTP() *string             { return m.KTP }
 func (m *MasterWatchlist) GetNPWP() *string            { return m.NPWP }
 func (m *MasterWatchlist) GetNoPaspor() *string        { return m.NoPaspor }
-func (m *MasterWatchlist) GetSource() string           { return m.Source }
-func (m *MasterWatchlist) GetType() string             { return m.Type }
-func (m *MasterWatchlist) GetCreatedAt() time.Time     { return m.CreatedAt }
-func (m *MasterWatchlist) GetIsActive() bool           { return m.IsActive }
+func (m *MasterWatchlist) GetSource() *string          { return m.Source }
+func (m *MasterWatchlist) GetType() *string            { return m.Type }
+func (m *MasterWatchlist) GetCreatedAt() *time.Time    { return m.CreatedAt }
+func (m *MasterWatchlist) GetIsActive() *bool          { return m.IsActive }
 
 /* Getter untuk masing-masing alias
 func (m *MasterWatchlist) GetAlias1() string { return getAlias(m.Aliases, 0) }

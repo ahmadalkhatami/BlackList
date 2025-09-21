@@ -31,8 +31,7 @@ func (m *DTTOTMatcher) Match(ctx context.Context) (*MatchResults, error) {
 		fmt.Printf("⏱️ %sMatcher selesai dalam %v\n", m.Source(), time.Since(start))
 	}()
 
-	return runParallelMatch(ctx, m.Source(), m.nasabahSvc, m.watchlistSvc,
-		m.configSvc, m.watchlistSvc.LoadDTTOTIndividu, m.watchlistSvc.LoadDTTOTCorporate)
+	return runParallelMatch(ctx, m.Source(), m.nasabahSvc, m.configSvc, m.watchlistSvc.LoadDTTOTIndividu, m.watchlistSvc.LoadDTTOTCorporate)
 }
 
 // ===== WMD Matcher =====
@@ -54,8 +53,7 @@ func (m *WMDMatcher) Match(ctx context.Context) (*MatchResults, error) {
 		fmt.Printf("⏱️ %sMatcher selesai dalam %v\n", m.Source(), time.Since(start))
 	}()
 
-	return runParallelMatch(ctx, m.Source(), m.nasabahSvc, m.watchlistSvc,
-		m.configSvc, m.watchlistSvc.LoadWMDIndividu, m.watchlistSvc.LoadWMDCorporate)
+	return runParallelMatch(ctx, m.Source(), m.nasabahSvc, m.configSvc, m.watchlistSvc.LoadWMDIndividu, m.watchlistSvc.LoadWMDCorporate)
 }
 
 // ===== Local Blacklist Matcher =====
@@ -77,8 +75,7 @@ func (m *LocalBlacklistMatcher) Match(ctx context.Context) (*MatchResults, error
 		fmt.Printf("⏱️ %sMatcher selesai dalam %v\n", m.Source(), time.Since(start))
 	}()
 
-	return runParallelMatch(ctx, m.Source(), m.nasabahSvc, m.watchlistSvc,
-		m.configSvc, m.watchlistSvc.LoadLocalBlacklistIndividu, m.watchlistSvc.LoadLocalBlacklistCorporate)
+	return runParallelMatch(ctx, m.Source(), m.nasabahSvc, m.configSvc, m.watchlistSvc.LoadLocalBlacklistIndividu, m.watchlistSvc.LoadLocalBlacklistCorporate)
 }
 
 // ===== Helper: Parallel run for Individu & Corporate =====
@@ -86,13 +83,13 @@ func runParallelMatch(
 	ctx context.Context,
 	source string,
 	nasabahSvc MasterNasabahService,
-	watchlistSvc WatchlistService,
 	configSvc SystemConfigService,
 	loadIndividu func(context.Context) ([]models.MasterWatchlist, error),
 	loadCorporate func(context.Context) ([]models.MasterWatchlist, error),
 ) (*MatchResults, error) {
 
 	debug := utils.IsDebugMode()
+	fmt.Printf("Is Debug Mode : %t\n", debug)
 
 	var wg sync.WaitGroup
 	resultsChan := make(chan *MatchResults, 2)
@@ -103,10 +100,14 @@ func runParallelMatch(
 	if err != nil {
 		return nil, err
 	}
+	fmt.Printf("DEBUG: Loaded Threshold = %0.2f\n", threshold)
+
 	algorithm, err := configSvc.GetMatchingAlgorithm(ctx)
 	if err != nil {
 		return nil, err
 	}
+	fmt.Printf("DEBUG: Loaded Algorthm = %s\n", algorithm)
+
 	simCalc, err := similarity.NewCalculator(similarity.Algorithm(algorithm))
 	if err != nil {
 		return nil, err
@@ -117,10 +118,13 @@ func runParallelMatch(
 	if err != nil {
 		return nil, err
 	}
+	fmt.Printf("DEBUG: Loaded Config Individu = %v \n", cfgIndividu)
+
 	cfgCorporate, err := configSvc.LoadCorporate(ctx)
 	if err != nil {
 		return nil, err
 	}
+	fmt.Printf("DEBUG: Loaded Config Corporate = %v \n", cfgCorporate)
 
 	// run individu
 	wg.Add(1)
@@ -184,17 +188,26 @@ func matchMaster(
 	if err != nil {
 		return nil, err
 	}
+	fmt.Printf("DEBUG: Loaded CIF total = %d\n", len(cifList))
+
 	watchlist, err := loadWatchlist(ctx)
 	if err != nil {
 		return nil, err
 	}
+	fmt.Printf("DEBUG: Loaded Watchlist total = %d\n", len(watchlist))
 
 	var matchResults []models.MatchingResult
 	var matchDetails []models.MatchingDetail
 
 	for _, cif := range cifList {
 		for _, wl := range watchlist {
-			if !wl.IsActive || wl.Source != source {
+
+			if debug {
+				fmt.Printf("\n🚀 Active Whatchlist: %t | Watchlist Source: %s (Source: %s)\n",
+					*wl.GetIsActive(), *wl.GetSource(), source)
+			}
+
+			if !*wl.GetIsActive() || *wl.GetSource() != source {
 				continue
 			}
 
@@ -249,14 +262,14 @@ func matchMaster(
 					MatchingResultId: utils.Ptr(wl.ID),
 				})
 
-				// if debug {
-				// 	fmt.Printf("   🔍 Field: %s | CIF: '%s' | WL: '%s' | Score: %.2f | Weight: %.2f\n",
-				// 		cfg.FieldName, custVal, bestMatch, maxScore, cfg.FieldWeight)
-				// }
 				if debug {
-					fmt.Printf("   ✅ BestMatch=%q | MaxScore=%.4f (Weighted=%.4f)\n",
-						bestMatch, maxScore, maxScore*cfg.FieldWeight)
+					fmt.Printf("   🔍 Field: %s | CIF: '%s' | WL: '%s' | Score: %.2f | Weight: %.2f\n",
+						cfg.FieldName, custVal, bestMatch, maxScore, cfg.FieldWeight)
 				}
+				// if debug {
+				// 	fmt.Printf("   ✅ BestMatch=%q | MaxScore=%.4f (Weighted=%.4f)\n",
+				// 		bestMatch, maxScore, maxScore*cfg.FieldWeight)
+				// }
 			}
 
 			if totalWeight == 0 {

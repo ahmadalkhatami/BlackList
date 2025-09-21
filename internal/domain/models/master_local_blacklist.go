@@ -16,27 +16,37 @@ type MasterLocalBlacklist struct {
 	NPWP         *string
 	NoPaspor     *string
 	CreatedAt    *time.Time
-	UpdatedAt    *time.Time
 	IsActive     *bool
 }
 
-func (m MasterLocalBlacklist) GetID() int64    { return m.ID }
-func (m MasterLocalBlacklist) GetNama() string { return m.Nama }
-func (m MasterLocalBlacklist) GetAliases() []string {
+// Implement Watchlistable
+func (m *MasterLocalBlacklist) GetID() int64    { return m.ID }
+func (m *MasterLocalBlacklist) GetNama() string { return m.Nama }
+func (m *MasterLocalBlacklist) GetAliases() []string {
 	var aliases []string
-	for _, a := range []*string{m.Alias1, m.Alias2, m.Alias3, m.Alias4} {
-		if a != nil && *a != "" {
-			aliases = append(aliases, *a)
-		}
+	if m.Alias1 != nil {
+		aliases = append(aliases, *m.Alias1)
+	}
+	if m.Alias2 != nil {
+		aliases = append(aliases, *m.Alias2)
+	}
+	if m.Alias3 != nil {
+		aliases = append(aliases, *m.Alias3)
+	}
+	if m.Alias4 != nil {
+		aliases = append(aliases, *m.Alias4)
 	}
 	return aliases
 }
-func (m MasterLocalBlacklist) GetTempatLahir() *string     { return m.TempatLahir }
-func (m MasterLocalBlacklist) GetTanggalLahir() *time.Time { return m.TanggalLahir }
-func (m MasterLocalBlacklist) GetKTP() *string             { return m.KTP }
-func (m MasterLocalBlacklist) GetNPWP() *string            { return m.NPWP }
-func (m MasterLocalBlacklist) GetNoPaspor() *string        { return m.NoPaspor }
-func (m MasterLocalBlacklist) GetType() *string            { return m.Type }
-func (m MasterLocalBlacklist) GetCreatedAt() *time.Time    { return m.CreatedAt }
-func (m MasterLocalBlacklist) GetUpdatedAt() *time.Time    { return m.UpdatedAt }
-func (m MasterLocalBlacklist) GetIsActive() *bool          { return m.IsActive }
+func (m *MasterLocalBlacklist) GetTempatLahir() *string     { return m.TempatLahir }
+func (m *MasterLocalBlacklist) GetTanggalLahir() *time.Time { return m.TanggalLahir }
+func (m *MasterLocalBlacklist) GetKTP() *string             { return m.KTP }
+func (m *MasterLocalBlacklist) GetNPWP() *string            { return m.NPWP }
+func (m *MasterLocalBlacklist) GetNoPaspor() *string        { return m.NoPaspor }
+func (m *MasterLocalBlacklist) GetSource() *string {
+	src := "MASTER_LOCAL_BLACKLIST"
+	return &src
+}
+func (m *MasterLocalBlacklist) GetType() *string         { return m.Type }
+func (m *MasterLocalBlacklist) GetCreatedAt() *time.Time { return m.CreatedAt }
+func (m *MasterLocalBlacklist) GetIsActive() *bool       { return m.IsActive }
