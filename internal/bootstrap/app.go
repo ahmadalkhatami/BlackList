@@ -4,8 +4,6 @@ import (
 	"BlackListWorker/config"
 	"BlackListWorker/internal/db"
 	"BlackListWorker/internal/utils"
-
-	// "BlackListWorker/internal/utils"
 	"context"
 	"database/sql"
 	"fmt"
@@ -26,7 +24,7 @@ func (a *app) Start() error {
 	fmt.Printf("DEBUG MODE: %t\n", debug)
 
 	trigeredBy := utils.TrigeredBy()
-	fmt.Printf("Triggered By: %s\n", trigeredBy)
+	fmt.Printf("Triggered By: %d\n", trigeredBy)
 
 	cfg := config.Load()
 	conn := db.NewSQLServerConnector(cfg.DBServer, cfg.DBUser, cfg.DBPassword, cfg.DBName)

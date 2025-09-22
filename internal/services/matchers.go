@@ -52,8 +52,8 @@ func (m *GenericMatcher) NextDetailID() int64 {
 	return atomic.AddInt64(&m.idSvc.detailIDCounter, 1)
 }
 
-func (m *GenericMatcher) NextBatchID() int64 {
-	return atomic.AddInt64(&m.idSvc.batchIDCounter, 1)
+func (m *GenericMatcher) NextBatchID(batch *models.BatchProcessing) (int64, error) {
+	return m.idSvc.GenerateBatchID(batch)
 }
 
 func (m *GenericMatcher) Source() string { return m.source }
@@ -70,8 +70,8 @@ func (w *matcherIDWrapper) GenerateDetailID() int64 {
 	return w.matcher.NextDetailID()
 }
 
-func (w *matcherIDWrapper) GenerateBatchID() int64 {
-	return w.matcher.NextBatchID()
+func (w *matcherIDWrapper) GenerateBatchID(batch *models.BatchProcessing) (int64, error) {
+	return w.matcher.NextBatchID(batch)
 }
 
 func (m *GenericMatcher) Match(ctx context.Context) (*MatchResults, error) {
@@ -169,7 +169,7 @@ func runAdaptiveMatch(
 	idGen interface {
 		GenerateResultID() int64
 		GenerateDetailID() int64
-		GenerateBatchID() int64
+		GenerateBatchID(batch *models.BatchProcessing) (int64, error)
 	},
 	loadIndividu func(context.Context) ([]models.MasterWatchlist, error),
 	loadCorporate func(context.Context) ([]models.MasterWatchlist, error),
@@ -190,7 +190,7 @@ func runParallelMatch(
 	idGen interface {
 		GenerateResultID() int64
 		GenerateDetailID() int64
-		GenerateBatchID() int64
+		GenerateBatchID(batch *models.BatchProcessing) (int64, error)
 	},
 	loadIndividu func(context.Context) ([]models.MasterWatchlist, error),
 	loadCorporate func(context.Context) ([]models.MasterWatchlist, error),
@@ -252,7 +252,7 @@ func runSerialMatch(
 	idGen interface {
 		GenerateResultID() int64
 		GenerateDetailID() int64
-		GenerateBatchID() int64
+		GenerateBatchID(batch *models.BatchProcessing) (int64, error)
 	},
 	loadIndividu func(context.Context) ([]models.MasterWatchlist, error),
 	loadCorporate func(context.Context) ([]models.MasterWatchlist, error),
@@ -291,7 +291,7 @@ func matchMaster(
 	idGen interface {
 		GenerateResultID() int64
 		GenerateDetailID() int64
-		GenerateBatchID() int64
+		GenerateBatchID(batch *models.BatchProcessing) (int64, error)
 	},
 	loadWatchlist func(context.Context) ([]models.MasterWatchlist, error),
 	simCalc similarity.Calculator,
@@ -322,6 +322,25 @@ func matchMaster(
 
 	var matchResults []models.MatchingResult
 	var matchDetails []models.MatchingDetail
+
+	// sql.Named("Id", batchID),
+	// sql.Named("ProcessType", batch.ProcessType),
+	// sql.Named("TotalRecords", batch.TotalRecords),
+	// sql.Named("InitiatedBy", batch.InitiatedBy),
+	// sql.Named("FilePath", batch.FilePath),
+
+	batch := &models.BatchProcessing{
+		Id:           0,
+		ProcessType:  utils.Ptr(source),
+		Status:       utils.Ptr("running"), /* Status: running | completed | failed */
+		TotalRecords: utils.Ptr(0),
+		InitiatedBy:  utils.TrigeredBy(),
+	}
+
+	batchID, err := idGen.GenerateBatchID(batch)
+	if err != nil {
+		fmt.Printf("⚠️ warning: gagal create batch in DB: %v. using fallback id %d\n", err, batchID)
+	}
 
 	for _, cif := range cifList {
 		for _, wl := range watchlist {
@@ -370,8 +389,13 @@ func matchMaster(
 
 			finalScore := totalScore / totalWeight
 
+			if finalScore < threshold {
+				fmt.Printf(`\n| finalScore:%.2f, threshold:%.2f |\n`, finalScore, threshold)
+			}
+
 			result := models.MatchingResult{
 				Id:              idGen.GenerateResultID(),
+				BatchId:         utils.Ptr(batchID),
 				CifNumber:       utils.Ptr(cif.CifNumber),
 				CustomerName:    utils.Ptr(cif.NamaNasabah),
 				WatchlistId:     utils.Ptr(wl.ID),

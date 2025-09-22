@@ -9,7 +9,7 @@ import (
 
 type BatchProcessingRepository interface {
 	Create(batch *models.BatchProcessing) (int64, error)
-	UpdateStatus(batchID int64, status string, processed, matched int, errMsg string) error
+	UpdateStatus(batch *models.BatchProcessing) error
 	GetLastId(ctx context.Context) (int64, error)
 	ResetSequenceId(ctx context.Context) error
 	GetSequencedId(ctx context.Context) (int64, error)
@@ -35,7 +35,7 @@ func (r *sqlBatchProcessingRepository) Create(batch *models.BatchProcessing) (in
 		INSERT INTO BATCH_PROCESSING
 			(Id, ProcessType, Status, TotalRecords, ProcessedRecords, MatchedRecords, StartTime, InitiatedBy, FilePath)
 		VALUES
-			(@Id, @ProcessType, 'running', @TotalRecords, 0, 0, GETDATE(), @InitiatedBy, @FilePath);
+			(@Id, @ProcessType, @Status, @TotalRecords, 0, 0, GETDATE(), @InitiatedBy, @FilePath);
 	`
 
 	stmt, err := r.DB.PrepareContext(ctx, query)
@@ -47,6 +47,7 @@ func (r *sqlBatchProcessingRepository) Create(batch *models.BatchProcessing) (in
 	_, err = stmt.ExecContext(ctx,
 		sql.Named("Id", batchID),
 		sql.Named("ProcessType", batch.ProcessType),
+		sql.Named("Status", batch.Status),
 		sql.Named("TotalRecords", batch.TotalRecords),
 		sql.Named("InitiatedBy", batch.InitiatedBy),
 		sql.Named("FilePath", batch.FilePath),
@@ -58,7 +59,7 @@ func (r *sqlBatchProcessingRepository) Create(batch *models.BatchProcessing) (in
 	return batchID, nil
 }
 
-func (r *sqlBatchProcessingRepository) UpdateStatus(batchID int64, status string, processed, matched int, errMsg string) error {
+func (r *sqlBatchProcessingRepository) UpdateStatus(b *models.BatchProcessing) error {
 	ctx := context.Background()
 
 	query := `
@@ -78,11 +79,11 @@ func (r *sqlBatchProcessingRepository) UpdateStatus(batchID int64, status string
 	defer stmt.Close()
 
 	_, err = stmt.ExecContext(ctx,
-		sql.Named("Status", status),
-		sql.Named("ProcessedRecords", processed),
-		sql.Named("MatchedRecords", matched),
-		sql.Named("ErrorMessage", errMsg),
-		sql.Named("Id", batchID),
+		sql.Named("Status", b.Status),
+		sql.Named("ProcessedRecords", b.ProcessedRecords),
+		sql.Named("MatchedRecords", b.MatchedRecords),
+		sql.Named("ErrorMessage", b.ErrorMessage),
+		sql.Named("Id", b.Id),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to update batch status: %w", err)

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync/atomic"
 
+	"BlackListWorker/internal/domain/models"
 	"BlackListWorker/internal/domain/repositories"
 )
 
@@ -63,6 +64,12 @@ func (s *IDService) GenerateDetailID() int64 {
 	return atomic.AddInt64(&s.detailIDCounter, 1)
 }
 
-func (s *IDService) GenerateBatchID() int64 {
-	return atomic.AddInt64(&s.batchIDCounter, 1)
+func (s *IDService) GenerateBatchID(batch *models.BatchProcessing) (int64, error) {
+	batchID, err := s.batchRepo.Create(batch)
+	if err != nil {
+		fallback := atomic.AddInt64(&s.batchIDCounter, 1)
+		return fallback, err
+	}
+	atomic.StoreInt64(&s.batchIDCounter, batchID)
+	return batchID, nil
 }
