@@ -9,17 +9,17 @@ import (
 )
 
 type Container struct {
-	DB        *sql.DB
-	Config    services.SystemConfigService
-	CIF       services.MasterNasabahService
-	WatchList services.WatchlistService
-	Match     services.MatchService
-	BookID    *services.IDService
+	DB            *sql.DB
+	Config        services.SystemConfigService
+	CIF           services.MasterNasabahService
+	WatchList     services.WatchlistService
+	Match         services.MatchService
+	BookService   *services.IDService
+	ResultService services.MatchingResultService
 }
 
 func NewContainer(db *sql.DB, ctx context.Context) *Container {
 
-	// repo & service
 	cifRepo := repositories.NewSQLMasterNasabahRepository(db)
 	cifSvc := services.NewMasterNasabahService(
 		services.WithMasterNasabah(cifRepo),
@@ -39,26 +39,26 @@ func NewContainer(db *sql.DB, ctx context.Context) *Container {
 	detailRepo := repositories.NewSQLMatchingDetailsRepository(db)
 	batchRepo := repositories.NewSQLBatchProcessingRepository(db)
 
-	// 1. Buat shared IDService
 	idSvc := services.NewIDService(resultRepo, detailRepo, batchRepo)
 	if err := idSvc.InitAtomicIDs(ctx); err != nil {
 		panic(fmt.Sprintf("failed to init IDService: %v", err))
 	}
 
-	// 2. Inisialisasi matcher dengan pointer IDService yang sama
 	dttotMatcher := services.NewDTTOTMatcher(cifSvc, watchlistSvc, configSvc, idSvc)
 	wmdMatcher := services.NewWMDMatcher(cifSvc, watchlistSvc, configSvc, idSvc)
 	localMatcher := services.NewLocalBlacklistMatcher(cifSvc, watchlistSvc, configSvc, idSvc)
 
-	// 3. Buat MatchService dengan semua matcher
 	matchSvc := services.NewMatchService(dttotMatcher, wmdMatcher, localMatcher)
 
+	resultSvc := services.NewMatchingResultService(resultRepo, detailRepo)
+
 	return &Container{
-		DB:        db,
-		Config:    configSvc,
-		CIF:       cifSvc,
-		WatchList: watchlistSvc,
-		Match:     matchSvc,
-		BookID:    idSvc, // simpan shared IDService di container
+		DB:            db,
+		Config:        configSvc,
+		CIF:           cifSvc,
+		WatchList:     watchlistSvc,
+		Match:         matchSvc,
+		BookService:   idSvc,
+		ResultService: resultSvc,
 	}
 }

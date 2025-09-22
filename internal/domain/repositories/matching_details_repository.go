@@ -12,7 +12,7 @@ import (
 type MatchingDetailsRepository interface {
 	Load(ctx context.Context) ([]models.MatchingDetail, error)
 	Save(ctx context.Context, details []models.MatchingDetail) error
-	SaveBatch(ctx context.Context, batchID string, details []models.MatchingDetail) error
+	SaveBatch(ctx context.Context, batchID int64, details []models.MatchingDetail) error
 	GetLastId(ctx context.Context) (int64, error)
 	ResetSequenceId(ctx context.Context) error
 }
@@ -107,7 +107,7 @@ func (r *sqlMatchingDetailsRepository) Save(ctx context.Context, details []model
 	return tx.Commit()
 }
 
-func (r *sqlMatchingDetailsRepository) SaveBatch(ctx context.Context, batchID string, details []models.MatchingDetail) error {
+func (r *sqlMatchingDetailsRepository) SaveBatch(ctx context.Context, batchID int64, details []models.MatchingDetail) error {
 	tx, err := r.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return err

@@ -8,6 +8,7 @@ import (
 type MatchResults struct {
 	MatchResult []models.MatchingResult
 	MatchDetail []models.MatchingDetail
+	BatchID     int64
 }
 
 type MatchService interface {

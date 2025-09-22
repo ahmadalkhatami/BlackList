@@ -12,12 +12,9 @@ import (
 type MatchingResultRepository interface {
 	Load(ctx context.Context, query *string) ([]models.MatchingResult, error)
 	Save(ctx context.Context, results []models.MatchingResult) error
-	SaveBatch(ctx context.Context, batchID string, results []models.MatchingResult) error
+	SaveBatch(ctx context.Context, batchID int64, results []models.MatchingResult) error
 	GetLastId(ctx context.Context) (int64, error)
-	// GetLastBatchId(ctx context.Context) (int64, error)
 	ResetSequenceId(ctx context.Context) error
-	// ResetSequenceBatchId(ctx context.Context) error
-	// GetSequencedBatchId(ctx context.Context) (int64, error)
 }
 
 type sqlMatchingResultRepository struct {
@@ -82,7 +79,7 @@ func (r *sqlMatchingResultRepository) Save(ctx context.Context, results []models
 
 	const q = `
 		INSERT INTO dbo.MATCHING_RESULTS
-			(BatchId, CIFNumber, CustomerName, WatchlistId, WatchlistSource, 
+			(BatchId, CifNumber, CustomerName, WatchlistId, WatchlistSource, 
 			 SimilarityScore, Status, ProcessDate, ProcessTime)
 		VALUES (@p1, @p2, @p3, @p4, @p5, @p6, @p7, @p8, @p9)`
 
@@ -112,7 +109,7 @@ func (r *sqlMatchingResultRepository) Save(ctx context.Context, results []models
 	return tx.Commit()
 }
 
-func (r *sqlMatchingResultRepository) SaveBatch(ctx context.Context, batchID string, results []models.MatchingResult) error {
+func (r *sqlMatchingResultRepository) SaveBatch(ctx context.Context, batchID int64, results []models.MatchingResult) error {
 	if len(results) == 0 {
 		return nil
 	}
@@ -127,7 +124,7 @@ func (r *sqlMatchingResultRepository) SaveBatch(ctx context.Context, batchID str
 		"MATCHING_RESULTS",
 		mssql.BulkOptions{KeepNulls: true},
 		"BatchId",
-		"CIFNumber",
+		"CifNumber",
 		"CustomerName",
 		"WatchlistId",
 		"WatchlistSource",

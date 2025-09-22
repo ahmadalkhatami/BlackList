@@ -323,16 +323,11 @@ func matchMaster(
 	var matchResults []models.MatchingResult
 	var matchDetails []models.MatchingDetail
 
-	// sql.Named("Id", batchID),
-	// sql.Named("ProcessType", batch.ProcessType),
-	// sql.Named("TotalRecords", batch.TotalRecords),
-	// sql.Named("InitiatedBy", batch.InitiatedBy),
-	// sql.Named("FilePath", batch.FilePath),
-
 	batch := &models.BatchProcessing{
-		Id:           0,
-		ProcessType:  utils.Ptr(source),
-		Status:       utils.Ptr("running"), /* Status: running | completed | failed */
+		Id:          0,
+		ProcessType: utils.Ptr(source),
+		/* Status: running | completed | failed */
+		Status:       utils.Ptr("running"),
 		TotalRecords: utils.Ptr(0),
 		InitiatedBy:  utils.TrigeredBy(),
 	}
@@ -389,7 +384,7 @@ func matchMaster(
 
 			finalScore := totalScore / totalWeight
 
-			if finalScore < threshold {
+			if debug && finalScore < threshold {
 				fmt.Printf(`\n| finalScore:%.2f, threshold:%.2f |\n`, finalScore, threshold)
 			}
 
@@ -420,5 +415,6 @@ func matchMaster(
 	return &MatchResults{
 		MatchResult: matchResults,
 		MatchDetail: matchDetails,
+		BatchID:     batchID,
 	}, nil
 }

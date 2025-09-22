@@ -40,12 +40,7 @@ func (a *app) Start() error {
 	}
 
 	ctx := context.Background()
-
 	container := NewContainer(sqlDB, ctx)
-	if err != nil {
-		fmt.Printf("❌ Error saat init container: %v\n", err)
-		return err
-	}
 
 	err = db.EnsureSequences(ctx, sqlDB)
 	if err != nil {
@@ -62,6 +57,15 @@ func (a *app) Start() error {
 	duration := time.Since(startTime)
 
 	results := container.Match.GetResults()
+
+	resultSvc := container.ResultService
+	resultSvc.SetBatchID(results.BatchID)
+	resultSvc.SetResults(results.MatchResult)
+	resultSvc.SetDetails(results.MatchDetail)
+	errSaveResults := resultSvc.Save(ctx)
+	if errSaveResults != nil {
+		return errSaveResults
+	}
 
 	if debug {
 		fmt.Println("\n--- MATCH RESULTS ---")
