@@ -19,6 +19,7 @@ type GenericMatcher struct {
 	nasabahSvc    MasterNasabahService
 	watchlistSvc  WatchlistService
 	configSvc     SystemConfigService
+	idSvc         *IDService
 	loadIndividu  func(context.Context) ([]models.MasterWatchlist, error)
 	loadCorporate func(context.Context) ([]models.MasterWatchlist, error)
 }
@@ -28,36 +29,70 @@ func NewGenericMatcher(
 	nasabahSvc MasterNasabahService,
 	watchlistSvc WatchlistService,
 	configSvc SystemConfigService,
+	idSvc *IDService,
 	loadIndividu func(context.Context) ([]models.MasterWatchlist, error),
 	loadCorporate func(context.Context) ([]models.MasterWatchlist, error),
 ) *GenericMatcher {
 	return &GenericMatcher{
-		source: source, nasabahSvc: nasabahSvc,
-		watchlistSvc: watchlistSvc, configSvc: configSvc,
-		loadIndividu: loadIndividu, loadCorporate: loadCorporate,
+		source:        source,
+		nasabahSvc:    nasabahSvc,
+		watchlistSvc:  watchlistSvc,
+		configSvc:     configSvc,
+		idSvc:         idSvc,
+		loadIndividu:  loadIndividu,
+		loadCorporate: loadCorporate,
 	}
+}
+
+func (m *GenericMatcher) NextResultID() int64 {
+	return atomic.AddInt64(&m.idSvc.resultIDCounter, 1)
+}
+
+func (m *GenericMatcher) NextDetailID() int64 {
+	return atomic.AddInt64(&m.idSvc.detailIDCounter, 1)
+}
+
+func (m *GenericMatcher) NextBatchID() int64 {
+	return atomic.AddInt64(&m.idSvc.batchIDCounter, 1)
 }
 
 func (m *GenericMatcher) Source() string { return m.source }
 
+type matcherIDWrapper struct {
+	matcher *GenericMatcher
+}
+
+func (w *matcherIDWrapper) GenerateResultID() int64 {
+	return w.matcher.NextResultID()
+}
+
+func (w *matcherIDWrapper) GenerateDetailID() int64 {
+	return w.matcher.NextDetailID()
+}
+
+func (w *matcherIDWrapper) GenerateBatchID() int64 {
+	return w.matcher.NextBatchID()
+}
+
 func (m *GenericMatcher) Match(ctx context.Context) (*MatchResults, error) {
 	start := time.Now()
 	defer func() {
-		fmt.Printf("⏱️ %sMatcher selesai dalam %v\n", m.Source(), time.Since(start))
+		fmt.Printf("⏱️ %s Matcher selesai dalam %v\n", m.source, time.Since(start))
 	}()
-	return runAdaptiveMatch(ctx, m.Source(), m.nasabahSvc, m.configSvc, m.loadIndividu, m.loadCorporate)
+	return runAdaptiveMatch(ctx, m.source, m.nasabahSvc, m.configSvc,
+		&matcherIDWrapper{matcher: m}, m.loadIndividu, m.loadCorporate)
 }
 
-func NewDTTOTMatcher(nasabah MasterNasabahService, wl WatchlistService, cfg SystemConfigService) *GenericMatcher {
-	return NewGenericMatcher("MASTER_TERORIS", nasabah, wl, cfg, wl.LoadDTTOTIndividu, wl.LoadDTTOTCorporate)
+func NewDTTOTMatcher(nasabah MasterNasabahService, wl WatchlistService, cfg SystemConfigService, idSvc *IDService) *GenericMatcher {
+	return NewGenericMatcher("MASTER_TERORIS", nasabah, wl, cfg, idSvc, wl.LoadDTTOTIndividu, wl.LoadDTTOTCorporate)
 }
 
-func NewWMDMatcher(nasabah MasterNasabahService, wl WatchlistService, cfg SystemConfigService) *GenericMatcher {
-	return NewGenericMatcher("MASTER_WMD", nasabah, wl, cfg, wl.LoadWMDIndividu, wl.LoadWMDCorporate)
+func NewWMDMatcher(nasabah MasterNasabahService, wl WatchlistService, cfg SystemConfigService, idSvc *IDService) *GenericMatcher {
+	return NewGenericMatcher("MASTER_WMD", nasabah, wl, cfg, idSvc, wl.LoadWMDIndividu, wl.LoadWMDCorporate)
 }
 
-func NewLocalBlacklistMatcher(nasabah MasterNasabahService, wl WatchlistService, cfg SystemConfigService) *GenericMatcher {
-	return NewGenericMatcher("MASTER_LOCAL_BLACKLIST", nasabah, wl, cfg, wl.LoadLocalBlacklistIndividu, wl.LoadLocalBlacklistCorporate)
+func NewLocalBlacklistMatcher(nasabah MasterNasabahService, wl WatchlistService, cfg SystemConfigService, idSvc *IDService) *GenericMatcher {
+	return NewGenericMatcher("MASTER_LOCAL_BLACKLIST", nasabah, wl, cfg, idSvc, wl.LoadLocalBlacklistIndividu, wl.LoadLocalBlacklistCorporate)
 }
 
 type MatchConfig struct {
@@ -73,27 +108,22 @@ func loadMatchConfig(ctx context.Context, cfgSvc SystemConfigService) (*MatchCon
 	if err != nil {
 		return nil, err
 	}
-
 	algorithm, err := cfgSvc.GetMatchingAlgorithm(ctx)
 	if err != nil {
 		return nil, err
 	}
-
 	simCalc, err := similarity.NewCalculator(similarity.Algorithm(algorithm))
 	if err != nil {
 		return nil, err
 	}
-
 	cfgIndividu, err := cfgSvc.LoadIndividu(ctx)
 	if err != nil {
 		return nil, err
 	}
-
 	cfgCorporate, err := cfgSvc.LoadCorporate(ctx)
 	if err != nil {
 		return nil, err
 	}
-
 	return &MatchConfig{
 		Threshold: threshold,
 		Algorithm: algorithm,
@@ -104,7 +134,7 @@ func loadMatchConfig(ctx context.Context, cfgSvc SystemConfigService) (*MatchCon
 }
 
 func systemHealthy() bool {
-	cpuCollector := monitor.NewCPUCollector(0) // interval = 0 → snapshot instan
+	cpuCollector := monitor.NewCPUCollector(0)
 	memCollector := monitor.NewMemoryCollector()
 	threadCollector := monitor.NewThreadCollector()
 
@@ -128,7 +158,6 @@ func systemHealthy() bool {
 		fmt.Printf("⚠️ Goroutine terlalu banyak: %d\n", goroutines)
 		return false
 	}
-
 	return true
 }
 
@@ -137,28 +166,20 @@ func runAdaptiveMatch(
 	source string,
 	nasabahSvc MasterNasabahService,
 	configSvc SystemConfigService,
+	idGen interface {
+		GenerateResultID() int64
+		GenerateDetailID() int64
+		GenerateBatchID() int64
+	},
 	loadIndividu func(context.Context) ([]models.MasterWatchlist, error),
 	loadCorporate func(context.Context) ([]models.MasterWatchlist, error),
 ) (*MatchResults, error) {
-
 	if systemHealthy() {
 		fmt.Println("🚀 Resource sehat → gunakan parallel matching")
-		return runParallelMatch(ctx, source, nasabahSvc, configSvc, loadIndividu, loadCorporate)
+		return runParallelMatch(ctx, source, nasabahSvc, configSvc, idGen, loadIndividu, loadCorporate)
 	}
-
 	fmt.Println("🐢 Resource terbatas → gunakan serial matching")
-	return runSerialMatch(ctx, source, nasabahSvc, configSvc, loadIndividu, loadCorporate)
-}
-
-var resultIDCounter int64 = 0
-var detailIDCounter int64 = 0
-
-func generateResultID() int64 {
-	return atomic.AddInt64(&resultIDCounter, 1)
-}
-
-func generateDetailID() int64 {
-	return atomic.AddInt64(&detailIDCounter, 1)
+	return runSerialMatch(ctx, source, nasabahSvc, configSvc, idGen, loadIndividu, loadCorporate)
 }
 
 func runParallelMatch(
@@ -166,14 +187,16 @@ func runParallelMatch(
 	source string,
 	nasabahSvc MasterNasabahService,
 	configSvc SystemConfigService,
+	idGen interface {
+		GenerateResultID() int64
+		GenerateDetailID() int64
+		GenerateBatchID() int64
+	},
 	loadIndividu func(context.Context) ([]models.MasterWatchlist, error),
 	loadCorporate func(context.Context) ([]models.MasterWatchlist, error),
-	// debug bool,
 ) (*MatchResults, error) {
 
 	debug := utils.IsDebugMode()
-	// fmt.Printf("Debug Mode : %t\n", debug)
-
 	var wg sync.WaitGroup
 	resultsChan := make(chan *MatchResults, 2)
 	errChan := make(chan error, 2)
@@ -186,7 +209,7 @@ func runParallelMatch(
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		res, err := matchMaster(ctx, source, nasabahSvc, cfg.Individu, loadIndividu, cfg.SimCalc, cfg.Threshold, cfg.Algorithm, debug)
+		res, err := matchMaster(ctx, source, nasabahSvc, cfg.Individu, idGen, loadIndividu, cfg.SimCalc, cfg.Threshold, cfg.Algorithm, debug)
 		if err != nil {
 			errChan <- err
 			return
@@ -197,7 +220,7 @@ func runParallelMatch(
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		res, err := matchMaster(ctx, source, nasabahSvc, cfg.Corporate, loadCorporate, cfg.SimCalc, cfg.Threshold, cfg.Algorithm, debug)
+		res, err := matchMaster(ctx, source, nasabahSvc, cfg.Corporate, idGen, loadCorporate, cfg.SimCalc, cfg.Threshold, cfg.Algorithm, debug)
 		if err != nil {
 			errChan <- err
 			return
@@ -218,7 +241,6 @@ func runParallelMatch(
 		allResults.MatchResult = append(allResults.MatchResult, r.MatchResult...)
 		allResults.MatchDetail = append(allResults.MatchDetail, r.MatchDetail...)
 	}
-
 	return &allResults, nil
 }
 
@@ -227,10 +249,14 @@ func runSerialMatch(
 	source string,
 	nasabahSvc MasterNasabahService,
 	configSvc SystemConfigService,
+	idGen interface {
+		GenerateResultID() int64
+		GenerateDetailID() int64
+		GenerateBatchID() int64
+	},
 	loadIndividu func(context.Context) ([]models.MasterWatchlist, error),
 	loadCorporate func(context.Context) ([]models.MasterWatchlist, error),
 ) (*MatchResults, error) {
-
 	debug := utils.IsDebugMode()
 
 	cfg, err := loadMatchConfig(ctx, configSvc)
@@ -240,14 +266,14 @@ func runSerialMatch(
 
 	allResults := &MatchResults{}
 
-	resInd, err := matchMaster(ctx, source, nasabahSvc, cfg.Individu, loadIndividu, cfg.SimCalc, cfg.Threshold, cfg.Algorithm, debug)
+	resInd, err := matchMaster(ctx, source, nasabahSvc, cfg.Individu, idGen, loadIndividu, cfg.SimCalc, cfg.Threshold, cfg.Algorithm, debug)
 	if err != nil {
 		return nil, err
 	}
 	allResults.MatchResult = append(allResults.MatchResult, resInd.MatchResult...)
 	allResults.MatchDetail = append(allResults.MatchDetail, resInd.MatchDetail...)
 
-	resCorp, err := matchMaster(ctx, source, nasabahSvc, cfg.Corporate, loadCorporate, cfg.SimCalc, cfg.Threshold, cfg.Algorithm, debug)
+	resCorp, err := matchMaster(ctx, source, nasabahSvc, cfg.Corporate, idGen, loadCorporate, cfg.SimCalc, cfg.Threshold, cfg.Algorithm, debug)
 	if err != nil {
 		return nil, err
 	}
@@ -262,6 +288,11 @@ func matchMaster(
 	source string,
 	nasabahSvc MasterNasabahService,
 	cfgList []models.JoinedMatchingConfig,
+	idGen interface {
+		GenerateResultID() int64
+		GenerateDetailID() int64
+		GenerateBatchID() int64
+	},
 	loadWatchlist func(context.Context) ([]models.MasterWatchlist, error),
 	simCalc similarity.Calculator,
 	threshold float64,
@@ -294,7 +325,6 @@ func matchMaster(
 
 	for _, cif := range cifList {
 		for _, wl := range watchlist {
-
 			if !*wl.GetIsActive() || *wl.GetSource() != source {
 				continue
 			}
@@ -308,31 +338,8 @@ func matchMaster(
 					continue
 				}
 
-				// fieldLower := strings.ToLower(cfg.FieldName)
-				// var custVal string
-				// if strings.HasPrefix(fieldLower, "alias") {
-				// 	custVal = cif.NamaNasabah
-				// } else {
-				// 	custVal = utils.GetCIFValueByField(cif, cfg.FieldName)
-				// }
-
-				// var wlValues []string
-				// switch fieldLower {
-				// case "nama", "namanasabah":
-				// 	wlValues = append([]string{wl.Nama}, wl.Aliases...)
-				// default:
-				// 	wlValues = utils.GetWatchlistValuesByField(wl, cfg.FieldName)
-				// }
-
 				custVal := utils.GetCIFValueByField(cif, cfg.FieldName)
 				wlValues := utils.GetWatchlistValuesByField(wl, cfg.FieldName)
-
-				if debug {
-					fmt.Printf("\n🔧 DEBUG Field=%s\n", cfg.FieldName)
-					fmt.Printf("   ↳ CustomerValue = %q\n", custVal)
-					fmt.Printf("   ↳ WatchlistValues = %v\n", wlValues)
-					fmt.Printf("   ↳ FieldWeight = %.2f | Active=%v\n", cfg.FieldWeight, cfg.IsActive)
-				}
 
 				maxScore := 0.0
 				bestMatch := ""
@@ -355,11 +362,6 @@ func matchMaster(
 					FieldWeight:    utils.Ptr(cfg.FieldWeight),
 					AlgorithmUsed:  utils.Ptr(algorithm),
 				})
-
-				if debug {
-					fmt.Printf("   🔍 Watchlist Id: %d | Field: %s | CIF: '%s' | WL: '%s' | Score: %.2f | Weight: %.2f\n",
-						wl.ID, cfg.FieldName, custVal, bestMatch, maxScore, cfg.FieldWeight)
-				}
 			}
 
 			if totalWeight == 0 {
@@ -369,7 +371,7 @@ func matchMaster(
 			finalScore := totalScore / totalWeight
 
 			result := models.MatchingResult{
-				Id:              generateResultID(),
+				Id:              idGen.GenerateResultID(),
 				CifNumber:       utils.Ptr(cif.CifNumber),
 				CustomerName:    utils.Ptr(cif.NamaNasabah),
 				WatchlistId:     utils.Ptr(wl.ID),
@@ -383,16 +385,11 @@ func matchMaster(
 
 			for i := range fieldMatches {
 				fieldMatches[i].MatchingResultId = utils.Ptr(result.Id)
-				fieldMatches[i].Id = generateDetailID()
+				fieldMatches[i].Id = idGen.GenerateDetailID()
 				matchDetails = append(matchDetails, fieldMatches[i])
 			}
 
 			matchResults = append(matchResults, result)
-
-			if debug {
-				fmt.Printf("✅ MATCH: CIF=%s vs Watchlist=%s Score=%.2f\n | Threshold : %d",
-					cif.NamaNasabah, wl.Nama, finalScore, threshold)
-			}
 		}
 	}
 

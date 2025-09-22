@@ -41,9 +41,13 @@ func (a *app) Start() error {
 		return err
 	}
 
-	container := NewContainer(sqlDB)
-
 	ctx := context.Background()
+
+	container := NewContainer(sqlDB, ctx)
+	if err != nil {
+		fmt.Printf("❌ Error saat init container: %v\n", err)
+		return err
+	}
 
 	err = db.EnsureSequences(ctx, sqlDB)
 	if err != nil {
@@ -60,8 +64,8 @@ func (a *app) Start() error {
 	duration := time.Since(startTime)
 
 	results := container.Match.GetResults()
-	fmt.Printf("✅ Total match: %d | Waktu proses: %s\n", len(results.MatchResult), duration)
 
+	// if debug {
 	fmt.Println("\n--- MATCH RESULTS ---")
 	for _, r := range results.MatchResult {
 		fmt.Printf(
@@ -196,6 +200,7 @@ func (a *app) Start() error {
 			}(),
 		)
 	}
+	// }
 
 	fmt.Printf("⏱️ Matching selesai dalam: %s\n", duration)
 
