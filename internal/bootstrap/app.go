@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"time"
 )
 
@@ -20,11 +21,13 @@ func (a *app) Start() error {
 
 	startTime := time.Now()
 
+	fmt.Println("DEBUG Args:", os.Args)
+
 	debug := utils.IsDebugMode()
 	fmt.Printf("DEBUG MODE: %t\n", debug)
 
 	trigeredBy := utils.TrigeredBy()
-	fmt.Printf("Triggered By: %d\n", trigeredBy)
+	fmt.Printf("Triggered By: %d\n", *trigeredBy)
 
 	cfg := config.Load()
 	conn := db.NewSQLServerConnector(cfg.DBServer, cfg.DBUser, cfg.DBPassword, cfg.DBName)
@@ -59,7 +62,7 @@ func (a *app) Start() error {
 	results := container.Match.GetResults()
 
 	resultSvc := container.ResultService
-	resultSvc.SetBatchID(results.BatchID)
+	// resultSvc.SetBatchID(results.BatchID)
 	resultSvc.SetResults(results.MatchResult)
 	resultSvc.SetDetails(results.MatchDetail)
 	errSaveResults := resultSvc.Save(ctx)

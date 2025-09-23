@@ -10,7 +10,7 @@ import (
 go run main.go "hello world" 123 */
 
 func TrigeredBy() *int {
-	for _, arg := range os.Args {
+	for _, arg := range os.Args[1:] { // skip arg pertama (path program)
 		if strings.HasPrefix(strings.ToLower(arg), "--user=") {
 			parts := strings.SplitN(arg, "=", 2)
 			if len(parts) == 2 {
@@ -21,6 +21,7 @@ func TrigeredBy() *int {
 		}
 	}
 
+	// fallback ke default
 	defaultVal := 1
 	return &defaultVal
 }

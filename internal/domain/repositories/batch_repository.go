@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 )
 
 type BatchProcessingRepository interface {
@@ -32,11 +33,11 @@ func (r *sqlBatchProcessingRepository) Create(batch *models.BatchProcessing) (in
 	}
 
 	query := `
-		INSERT INTO BATCH_PROCESSING
-			(Id, ProcessType, Status, TotalRecords, ProcessedRecords, MatchedRecords, StartTime, InitiatedBy, FilePath)
-		VALUES
-			(@Id, @ProcessType, @Status, @TotalRecords, 0, 0, GETDATE(), @InitiatedBy, @FilePath);
-	`
+        INSERT INTO BATCH_PROCESSING
+            (Id, ProcessType, Status, TotalRecords, ProcessedRecords, MatchedRecords, StartTime, InitiatedBy, FilePath)
+        VALUES
+            (@Id, @ProcessType, @Status, @TotalRecords, 0, 0, GETDATE(), @InitiatedBy, @FilePath);
+    `
 
 	stmt, err := r.DB.PrepareContext(ctx, query)
 	if err != nil {
@@ -53,6 +54,34 @@ func (r *sqlBatchProcessingRepository) Create(batch *models.BatchProcessing) (in
 		sql.Named("FilePath", batch.FilePath),
 	)
 	if err != nil {
+
+		if strings.Contains(err.Error(), "PRIMARY KEY constraint") {
+
+			syncErr := r.ResetSequenceId(ctx)
+			if syncErr != nil {
+				return 0, fmt.Errorf("failed to sync sequence: %w", syncErr)
+			}
+
+			batchID, err = r.GetSequencedId(ctx)
+			if err != nil {
+				return 0, fmt.Errorf("failed to get sequenced id after sync: %w", err)
+			}
+
+			_, err = stmt.ExecContext(ctx,
+				sql.Named("Id", batchID),
+				sql.Named("ProcessType", batch.ProcessType),
+				sql.Named("Status", batch.Status),
+				sql.Named("TotalRecords", batch.TotalRecords),
+				sql.Named("InitiatedBy", batch.InitiatedBy),
+				sql.Named("FilePath", batch.FilePath),
+			)
+			if err != nil {
+				return 0, fmt.Errorf("failed to insert batch after sync: %w", err)
+			}
+
+			return batchID, nil
+		}
+
 		return 0, fmt.Errorf("failed to insert batch: %w", err)
 	}
 
@@ -95,7 +124,7 @@ func (r *sqlBatchProcessingRepository) UpdateStatus(b *models.BatchProcessing) e
 func (r *sqlBatchProcessingRepository) GetLastId(ctx context.Context) (int64, error) {
 	var lastID sql.NullInt64
 
-	query := `SELECT MAX(BatchId) FROM MATCHING_RESULTS;`
+	query := `SELECT ISNULL(MAX(Id), 0) FROM BATCH_PROCESSING;`
 	err := r.DB.QueryRowContext(ctx, query).Scan(&lastID)
 	if err != nil {
 		return 0, err
@@ -119,25 +148,21 @@ func (r *sqlBatchProcessingRepository) ResetSequenceId(ctx context.Context) erro
 	query := fmt.Sprintf(`ALTER SEQUENCE Seq_MatchingBatch RESTART WITH %d;`, nextID)
 
 	_, err = r.DB.ExecContext(ctx, query)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 func (r *sqlBatchProcessingRepository) GetSequencedId(ctx context.Context) (int64, error) {
-	var NewBatchId sql.NullInt64
+	var newBatchId sql.NullInt64
 
 	query := `SELECT NEXT VALUE FOR Seq_MatchingBatch AS NewBatchId;`
-	err := r.DB.QueryRowContext(ctx, query).Scan(&NewBatchId)
+	err := r.DB.QueryRowContext(ctx, query).Scan(&newBatchId)
 	if err != nil {
 		return 0, err
 	}
 
-	if !NewBatchId.Valid {
+	if !newBatchId.Valid {
 		return 0, nil
 	}
 
-	return NewBatchId.Int64, nil
+	return newBatchId.Int64, nil
 }

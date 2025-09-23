@@ -12,7 +12,7 @@ import (
 type MatchingResultRepository interface {
 	Load(ctx context.Context, query *string) ([]models.MatchingResult, error)
 	Save(ctx context.Context, results []models.MatchingResult) error
-	SaveBatch(ctx context.Context, batchID int64, results []models.MatchingResult) error
+	SaveBatch(ctx context.Context, results []models.MatchingResult) error
 	GetLastId(ctx context.Context) (int64, error)
 	ResetSequenceId(ctx context.Context) error
 }
@@ -109,7 +109,7 @@ func (r *sqlMatchingResultRepository) Save(ctx context.Context, results []models
 	return tx.Commit()
 }
 
-func (r *sqlMatchingResultRepository) SaveBatch(ctx context.Context, batchID int64, results []models.MatchingResult) error {
+func (r *sqlMatchingResultRepository) SaveBatch(ctx context.Context, results []models.MatchingResult) error {
 	if len(results) == 0 {
 		return nil
 	}
@@ -123,6 +123,7 @@ func (r *sqlMatchingResultRepository) SaveBatch(ctx context.Context, batchID int
 	stmt, err := tx.Prepare(mssql.CopyIn(
 		"MATCHING_RESULTS",
 		mssql.BulkOptions{KeepNulls: true},
+		"Id",
 		"BatchId",
 		"CifNumber",
 		"CustomerName",
@@ -132,6 +133,7 @@ func (r *sqlMatchingResultRepository) SaveBatch(ctx context.Context, batchID int
 		"Status",
 		"ProcessDate",
 		"ProcessTime",
+		"CreatedAt",
 	))
 	if err != nil {
 		return err
@@ -145,7 +147,7 @@ func (r *sqlMatchingResultRepository) SaveBatch(ctx context.Context, batchID int
 		}
 
 		if _, err := stmt.Exec(
-			// batchID,
+			res.Id,
 			res.BatchId,
 			res.CifNumber,
 			customerName,
@@ -155,6 +157,7 @@ func (r *sqlMatchingResultRepository) SaveBatch(ctx context.Context, batchID int
 			res.Status,
 			res.ProcessDate,
 			res.ProcessTime,
+			res.CreatedAt,
 		); err != nil {
 			return err
 		}
@@ -170,7 +173,7 @@ func (r *sqlMatchingResultRepository) SaveBatch(ctx context.Context, batchID int
 func (r *sqlMatchingResultRepository) GetLastId(ctx context.Context) (int64, error) {
 	var lastID sql.NullInt64
 
-	query := `SELECT MAX(Id) FROM MATCHING_RESULTS;`
+	query := `SELECT ISNULL(MAX(Id), 0) FROM MATCHING_RESULTS;`
 	err := r.DB.QueryRowContext(ctx, query).Scan(&lastID)
 	if err != nil {
 		return 0, err

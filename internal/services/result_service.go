@@ -7,7 +7,7 @@ import (
 )
 
 type MatchingResultService interface {
-	SetBatchID(int64)
+	// SetBatchID(int64)
 	SetResults([]models.MatchingResult)
 	SetDetails([]models.MatchingDetail)
 	Save(ctx context.Context) error
@@ -75,9 +75,9 @@ func NewMatchingResultService(
 	return svc
 }
 
-func (m *MatchingResultImpl) SetBatchID(batchID int64) {
-	m.BatchID = &batchID
-}
+// func (m *MatchingResultImpl) SetBatchID(batchID int64) {
+// 	m.BatchID = &batchID
+// }
 
 func (m *MatchingResultImpl) SetResults(results []models.MatchingResult) {
 	m.MatchingResults = results
@@ -93,12 +93,12 @@ func (m *MatchingResultImpl) Save(ctx context.Context) error {
 		return nil
 	}
 
-	err1 := m.MatchingResultsRepo.SaveBatch(ctx, *m.BatchID, m.MatchingResults)
+	err1 := m.MatchingResultsRepo.SaveBatch(ctx, m.MatchingResults)
 	if err1 != nil {
 		return err1
 	}
 
-	err2 := m.MatchingResultsDetailsRepo.SaveBatch(ctx, *m.BatchID, m.MatchingResultsDetails)
+	err2 := m.MatchingResultsDetailsRepo.SaveBatch(ctx, m.MatchingResultsDetails)
 	if err2 != nil {
 		return err2
 	}
@@ -107,7 +107,7 @@ func (m *MatchingResultImpl) Save(ctx context.Context) error {
 }
 
 /*
-// Pemakaian dengan WithXxx
+// Pemakaian dengan With WithXxx
 svc := services.NewMatchingResultService(
     resultRepo,
     detailRepo,
@@ -117,7 +117,7 @@ svc := services.NewMatchingResultService(
 )
 err := svc.Save(ctx)
 
-//Pemakaian dengan SetXxx
+//Pemakaian dengan Set SetXxx
 svc := services.NewMatchingResultService(resultRepo, detailRepo)
 svc.SetBatchID(123)
 svc.SetResults(results)
