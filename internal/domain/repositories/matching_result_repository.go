@@ -145,7 +145,8 @@ func (r *sqlMatchingResultRepository) SaveBatch(ctx context.Context, batchID int
 		}
 
 		if _, err := stmt.Exec(
-			batchID,
+			// batchID,
+			res.BatchId,
 			res.CifNumber,
 			customerName,
 			res.WatchlistId,

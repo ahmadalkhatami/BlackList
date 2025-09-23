@@ -67,6 +67,8 @@ func (a *app) Start() error {
 		return errSaveResults
 	}
 
+	/* bisa add proses generate excel langsung ambil dari collection/struct disini */
+
 	if debug {
 		fmt.Println("\n--- MATCH RESULTS ---")
 		for _, r := range results.MatchResult {
