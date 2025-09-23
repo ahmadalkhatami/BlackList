@@ -61,6 +61,9 @@ func (a *app) Start() error {
 
 	results := container.Match.GetResults()
 
+	fmt.Printf("Total Results : %v\n", len(results.MatchResult))
+	fmt.Printf("Total Details : %v\n", len(results.MatchDetail))
+
 	resultSvc := container.ResultService
 	// resultSvc.SetBatchID(results.BatchID)
 	resultSvc.SetResults(results.MatchResult)
