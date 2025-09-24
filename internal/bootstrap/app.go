@@ -64,14 +64,14 @@ func (a *app) Start() error {
 	fmt.Printf("Total Results : %v\n", len(results.MatchResult))
 	fmt.Printf("Total Details : %v\n", len(results.MatchDetail))
 
-	resultSvc := container.ResultService
-	// resultSvc.SetBatchID(results.BatchID)
-	resultSvc.SetResults(results.MatchResult)
-	resultSvc.SetDetails(results.MatchDetail)
-	errSaveResults := resultSvc.Save(ctx)
-	if errSaveResults != nil {
-		return errSaveResults
-	}
+	// resultSvc := container.ResultService
+	// // resultSvc.SetBatchID(results.BatchID)
+	// resultSvc.SetResults(results.MatchResult)
+	// resultSvc.SetDetails(results.MatchDetail)
+	// errSaveResults := resultSvc.Save(ctx)
+	// if errSaveResults != nil {
+	// 	return errSaveResults
+	// }
 
 	/* bisa add proses generate excel langsung ambil dari collection/struct disini */
 
