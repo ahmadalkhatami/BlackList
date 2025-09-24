@@ -48,7 +48,7 @@ func NewContainer(db *sql.DB, ctx context.Context) *Container {
 	wmdMatcher := services.NewWMDMatcher(cifSvc, watchlistSvc, configSvc, idSvc)
 	localMatcher := services.NewLocalBlacklistMatcher(cifSvc, watchlistSvc, configSvc, idSvc)
 
-	matchSvc := services.NewMatchService(dttotMatcher, wmdMatcher, localMatcher)
+	matchSvc := services.NewMatchService(batchRepo, dttotMatcher, wmdMatcher, localMatcher)
 
 	resultSvc := services.NewMatchingResultService(resultRepo, detailRepo)
 

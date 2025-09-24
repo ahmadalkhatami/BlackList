@@ -96,6 +96,7 @@ func (r *sqlBatchProcessingRepository) UpdateStatus(b *models.BatchProcessing) e
 		SET Status = @Status,
 			ProcessedRecords = @ProcessedRecords,
 			MatchedRecords = @MatchedRecords,
+			TotalRecords = @TotalRecords,
 			EndTime = GETDATE(),
 			ErrorMessage = @ErrorMessage
 		WHERE Id = @Id
@@ -109,6 +110,7 @@ func (r *sqlBatchProcessingRepository) UpdateStatus(b *models.BatchProcessing) e
 
 	_, err = stmt.ExecContext(ctx,
 		sql.Named("Status", b.Status),
+		sql.Named("TotalRecords", b.TotalRecords),
 		sql.Named("ProcessedRecords", b.ProcessedRecords),
 		sql.Named("MatchedRecords", b.MatchedRecords),
 		sql.Named("ErrorMessage", b.ErrorMessage),

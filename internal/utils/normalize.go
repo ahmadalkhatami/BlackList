@@ -3,6 +3,9 @@ package utils
 import (
 	"strings"
 	"unicode"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 func Normalize(s string) string {
@@ -23,4 +26,15 @@ func Normalize(s string) string {
 		}
 	}
 	return strings.TrimSpace(string(b))
+}
+
+func FormatName(input string, lang language.Tag) string {
+
+	str := strings.ReplaceAll(input, "_", " ")
+
+	str = strings.ToLower(str)
+
+	caser := cases.Title(lang)
+
+	return caser.String(str)
 }

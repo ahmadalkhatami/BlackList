@@ -8,6 +8,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/shirou/gopsutil/v3 v3.24.5
 	github.com/xrash/smetrics v0.0.0-20250705151800-55b8f293f342
+	golang.org/x/text v0.3.6
 )
 
 require (

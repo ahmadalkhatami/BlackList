@@ -12,6 +12,8 @@ import (
 	"BlackListWorker/internal/domain/similarity"
 	"BlackListWorker/internal/monitor"
 	"BlackListWorker/internal/utils"
+
+	"golang.org/x/text/language"
 )
 
 type GenericMatcher struct {
@@ -300,6 +302,9 @@ func matchMaster(
 	debug bool,
 ) (*MatchResults, error) {
 
+	var matchResults []models.MatchingResult
+	var matchDetails []models.MatchingDetail
+
 	if nasabahSvc == nil {
 		return nil, errors.New("missing nasabahSvc dependency")
 	}
@@ -316,16 +321,31 @@ func matchMaster(
 	if err != nil {
 		return nil, err
 	}
+
+	if len(watchlist) == 0 {
+		return &MatchResults{
+			MatchResult: matchResults,
+			MatchDetail: matchDetails,
+			BatchID:     nil,
+		}, nil
+	}
+
 	if debug {
 		fmt.Printf("DEBUG: Loaded Watchlist total = %d\n", len(watchlist))
 	}
 
-	var matchResults []models.MatchingResult
-	var matchDetails []models.MatchingDetail
+	// fmt.Printf("Watchlist %v+\n", watchlist)
+
+	masterType := func() string {
+		if cfgList[0].Type {
+			return " (Individual)"
+		}
+		return " (Corporate)"
+	}()
 
 	batch := &models.BatchProcessing{
 		Id:          0,
-		ProcessType: utils.Ptr(source),
+		ProcessType: utils.Ptr(utils.FormatName(source, language.Indonesian) + masterType),
 		/* Status: running | completed | failed */
 		Status:       utils.Ptr("running"),
 		TotalRecords: utils.Ptr(0),
@@ -348,6 +368,9 @@ func matchMaster(
 			var fieldMatches []models.MatchingDetail
 
 			for _, cfg := range cfgList {
+
+				// fmt.Printf("Config %f", cfg.Type)
+
 				if !cfg.IsActive || cfg.WatchlistSource != source {
 					continue
 				}
@@ -415,6 +438,6 @@ func matchMaster(
 	return &MatchResults{
 		MatchResult: matchResults,
 		MatchDetail: matchDetails,
-		BatchID:     batchID,
+		BatchID:     &batchID,
 	}, nil
 }
