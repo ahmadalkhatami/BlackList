@@ -61,3 +61,11 @@ func GetStructKeys(s interface{}) []string {
 
 	return keys
 }
+
+func StrSliceToInterface(slice []string) []interface{} {
+	out := make([]interface{}, len(slice))
+	for i, v := range slice {
+		out[i] = v
+	}
+	return out
+}

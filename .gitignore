@@ -32,3 +32,5 @@ db/seeder/
 # Editor/IDE
 .idea/
 .vscode/
+
+output/*

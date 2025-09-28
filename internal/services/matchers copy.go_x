@@ -2,7 +2,9 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -23,11 +25,6 @@ type GenericMatcher struct {
 	idSvc         *IDService
 	loadIndividu  func(context.Context) ([]models.MasterWatchlist, error)
 	loadCorporate func(context.Context) ([]models.MasterWatchlist, error)
-}
-
-type matchResultWithSource struct {
-	source string
-	res    *models.MatchResults
 }
 
 func NewGenericMatcher(
@@ -68,46 +65,25 @@ type matcherIDWrapper struct {
 	matcher *GenericMatcher
 }
 
-func (w *matcherIDWrapper) GenerateResultID() int64 { return w.matcher.NextResultID() }
-func (w *matcherIDWrapper) GenerateDetailID() int64 { return w.matcher.NextDetailID() }
+func (w *matcherIDWrapper) GenerateResultID() int64 {
+	return w.matcher.NextResultID()
+}
+
+func (w *matcherIDWrapper) GenerateDetailID() int64 {
+	return w.matcher.NextDetailID()
+}
+
 func (w *matcherIDWrapper) GenerateBatchID(batch *models.BatchProcessing) (int64, error) {
 	return w.matcher.NextBatchID(batch)
 }
 
 func (m *GenericMatcher) Match(ctx context.Context) (*models.MatchResults, error) {
-	// start := time.Now()
-	// defer func() { fmt.Printf("⏱️ %s Matcher selesai dalam %v\n", m.source, time.Since(start)) }()
+	start := time.Now()
+	defer func() {
+		fmt.Printf("⏱️ %s Matcher selesai dalam %v\n", m.source, time.Since(start))
+	}()
 	return runAdaptiveMatch(ctx, m.source, m.nasabahSvc, m.configSvc,
 		&matcherIDWrapper{matcher: m}, m.loadIndividu, m.loadCorporate)
-}
-
-func (m *GenericMatcher) MatchType(ctx context.Context, masterType string) (*models.MatchResults, error) {
-	// start := time.Now()
-	// defer func() {
-	// 	fmt.Printf("⏱️ %s Matcher (%s) selesai dalam %v\n", m.source, masterType, time.Since(start))
-	// }()
-
-	var load func(context.Context) ([]models.MasterWatchlist, error)
-	var cfg []models.JoinedMatchingConfig
-
-	cfgFull, err := loadMatchConfig(ctx, m.configSvc)
-	if err != nil {
-		return nil, err
-	}
-
-	switch masterType {
-	case "Individu":
-		load = m.loadIndividu
-		cfg = cfgFull.Individu
-	case "Corporate":
-		load = m.loadCorporate
-		cfg = cfgFull.Corporate
-	default:
-		return nil, fmt.Errorf("unknown masterType: %s", masterType)
-	}
-
-	return matchMaster(ctx, m.source, masterType, m.nasabahSvc, cfg, &matcherIDWrapper{matcher: m},
-		load, cfgFull.SimCalc, cfgFull.Threshold, cfgFull.Algorithm, utils.IsDebugMode())
 }
 
 func NewDTTOTMatcher(nasabah MasterNasabahService, wl WatchlistService, cfg SystemConfigService, idSvc *IDService) *GenericMatcher {
@@ -209,44 +185,6 @@ func runAdaptiveMatch(
 	return runSerialMatch(ctx, source, nasabahSvc, configSvc, idGen, loadIndividu, loadCorporate)
 }
 
-func runSerialMatch(
-	ctx context.Context,
-	source string,
-	nasabahSvc MasterNasabahService,
-	configSvc SystemConfigService,
-	idGen interface {
-		GenerateResultID() int64
-		GenerateDetailID() int64
-		GenerateBatchID(batch *models.BatchProcessing) (int64, error)
-	},
-	loadIndividu func(context.Context) ([]models.MasterWatchlist, error),
-	loadCorporate func(context.Context) ([]models.MasterWatchlist, error),
-) (*models.MatchResults, error) {
-	debug := utils.IsDebugMode()
-	cfg, err := loadMatchConfig(ctx, configSvc)
-	if err != nil {
-		return nil, err
-	}
-
-	allResults := &models.MatchResults{}
-	for _, t := range []struct {
-		name string
-		cfg  []models.JoinedMatchingConfig
-		load func(context.Context) ([]models.MasterWatchlist, error)
-	}{
-		{"Individu", cfg.Individu, loadIndividu},
-		{"Corporate", cfg.Corporate, loadCorporate},
-	} {
-		res, err := matchMaster(ctx, source, t.name, nasabahSvc, t.cfg, idGen, t.load, cfg.SimCalc, cfg.Threshold, cfg.Algorithm, debug)
-		if err != nil {
-			return nil, err
-		}
-		allResults.MatchResult = append(allResults.MatchResult, res.MatchResult...)
-		allResults.MatchDetail = append(allResults.MatchDetail, res.MatchDetail...)
-	}
-	return allResults, nil
-}
-
 func runParallelMatch(
 	ctx context.Context,
 	source string,
@@ -262,35 +200,36 @@ func runParallelMatch(
 ) (*models.MatchResults, error) {
 
 	debug := utils.IsDebugMode()
+	var wg sync.WaitGroup
+	resultsChan := make(chan *models.MatchResults, 2)
+	errChan := make(chan error, 2)
+
 	cfg, err := loadMatchConfig(ctx, configSvc)
 	if err != nil {
 		return nil, err
 	}
 
-	resultsChan := make(chan *models.MatchResults, 2)
-	errChan := make(chan error, 2)
-	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		res, err := matchMaster(ctx, source, nasabahSvc, cfg.Individu, idGen, loadIndividu, cfg.SimCalc, cfg.Threshold, cfg.Algorithm, debug)
+		if err != nil {
+			errChan <- err
+			return
+		}
+		resultsChan <- res
+	}()
 
-	for _, t := range []struct {
-		name string
-		cfg  []models.JoinedMatchingConfig
-		load func(context.Context) ([]models.MasterWatchlist, error)
-	}{
-		{"Individu", cfg.Individu, loadIndividu},
-		{"Corporate", cfg.Corporate, loadCorporate},
-	} {
-		wg.Add(1)
-		t := t
-		go func() {
-			defer wg.Done()
-			res, err := matchMaster(ctx, source, t.name, nasabahSvc, t.cfg, idGen, t.load, cfg.SimCalc, cfg.Threshold, cfg.Algorithm, debug)
-			if err != nil {
-				errChan <- err
-				return
-			}
-			resultsChan <- res
-		}()
-	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		res, err := matchMaster(ctx, source, nasabahSvc, cfg.Corporate, idGen, loadCorporate, cfg.SimCalc, cfg.Threshold, cfg.Algorithm, debug)
+		if err != nil {
+			errChan <- err
+			return
+		}
+		resultsChan <- res
+	}()
 
 	wg.Wait()
 	close(resultsChan)
@@ -300,17 +239,56 @@ func runParallelMatch(
 		return nil, <-errChan
 	}
 
-	allResults := &models.MatchResults{}
+	var allResults models.MatchResults
 	for r := range resultsChan {
 		allResults.MatchResult = append(allResults.MatchResult, r.MatchResult...)
 		allResults.MatchDetail = append(allResults.MatchDetail, r.MatchDetail...)
 	}
+	return &allResults, nil
+}
+
+func runSerialMatch(
+	ctx context.Context,
+	source string,
+	nasabahSvc MasterNasabahService,
+	configSvc SystemConfigService,
+	idGen interface {
+		GenerateResultID() int64
+		GenerateDetailID() int64
+		GenerateBatchID(batch *models.BatchProcessing) (int64, error)
+	},
+	loadIndividu func(context.Context) ([]models.MasterWatchlist, error),
+	loadCorporate func(context.Context) ([]models.MasterWatchlist, error),
+) (*models.MatchResults, error) {
+	debug := utils.IsDebugMode()
+
+	cfg, err := loadMatchConfig(ctx, configSvc)
+	if err != nil {
+		return nil, err
+	}
+
+	allResults := &models.MatchResults{}
+
+	resInd, err := matchMaster(ctx, source, nasabahSvc, cfg.Individu, idGen, loadIndividu, cfg.SimCalc, cfg.Threshold, cfg.Algorithm, debug)
+	if err != nil {
+		return nil, err
+	}
+	allResults.MatchResult = append(allResults.MatchResult, resInd.MatchResult...)
+	allResults.MatchDetail = append(allResults.MatchDetail, resInd.MatchDetail...)
+
+	resCorp, err := matchMaster(ctx, source, nasabahSvc, cfg.Corporate, idGen, loadCorporate, cfg.SimCalc, cfg.Threshold, cfg.Algorithm, debug)
+	if err != nil {
+		return nil, err
+	}
+	allResults.MatchResult = append(allResults.MatchResult, resCorp.MatchResult...)
+	allResults.MatchDetail = append(allResults.MatchDetail, resCorp.MatchDetail...)
+
 	return allResults, nil
 }
 
 func matchMaster(
 	ctx context.Context,
-	source, masterType string,
+	source string,
 	nasabahSvc MasterNasabahService,
 	cfgList []models.JoinedMatchingConfig,
 	idGen interface {
@@ -325,34 +303,61 @@ func matchMaster(
 	debug bool,
 ) (*models.MatchResults, error) {
 
+	var matchResults []models.MatchingResult
+	var matchDetails []models.MatchingDetail
+
+	if nasabahSvc == nil {
+		return nil, errors.New("missing nasabahSvc dependency")
+	}
+
 	cifList, err := nasabahSvc.Load(ctx)
 	if err != nil {
 		return nil, err
 	}
+	if debug {
+		fmt.Printf("DEBUG: Loaded CIF total = %d\n", len(cifList))
+	}
+
 	watchlist, err := loadWatchlist(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	matchResults := []models.MatchingResult{}
-	matchDetails := []models.MatchingDetail{}
-
-	if len(watchlist) == 0 || len(cifList) == 0 {
-		return &models.MatchResults{MatchResult: matchResults, MatchDetail: matchDetails, MasterType: utils.StringPtr(masterType)}, nil
+	if len(watchlist) == 0 {
+		return &models.MatchResults{
+			MatchResult: matchResults,
+			MatchDetail: matchDetails,
+			MasterType:  nil,
+			BatchID:     nil,
+		}, nil
 	}
 
+	if debug {
+		fmt.Printf("DEBUG: Loaded Watchlist total = %d\n", len(watchlist))
+	}
+
+	// fmt.Printf("Watchlist %v+\n", watchlist)
+
+	masterType := func() string {
+		if cfgList[0].Type {
+			return " (Individual)"
+		}
+		return " (Corporate)"
+	}()
+
 	batch := &models.BatchProcessing{
-		ProcessType: utils.Ptr(utils.FormatName(source, language.Indonesian) + " " + masterType),
-		Status:      utils.Ptr("running"),
-		InitiatedBy: utils.TrigeredBy(),
+		Id:          0,
+		ProcessType: utils.Ptr(utils.FormatName(source, language.Indonesian) + masterType),
+		/* Status: running | completed | failed */
+		Status:       utils.Ptr("running"),
+		TotalRecords: utils.Ptr(0),
+		InitiatedBy:  utils.TrigeredBy(),
 	}
 
 	batchID, err := idGen.GenerateBatchID(batch)
 	if err != nil {
-		fmt.Printf("⚠️ gagal create batch: %v\n", err)
+		fmt.Printf("⚠️ warning: gagal create batch in DB: %v. using fallback id %d\n", err, batchID)
 	}
-
-	// Matching logic per CIF × Watchlist
 
 	for _, cif := range cifList {
 		for _, wl := range watchlist {
@@ -375,7 +380,7 @@ func matchMaster(
 				custVal := utils.GetCIFValueByField(cif, cfg.FieldName)
 				wlValues := utils.GetWatchlistValuesByField(wl, cfg.FieldName)
 
-				simCalcByRowConfig, err := similarity.NewCalculator(similarity.Algorithm(cfg.MatchingAlgorithm))
+				simByRowConfig, err := similarity.NewCalculator(similarity.Algorithm(cfg.MatchingAlgorithm))
 				if err != nil {
 					continue
 				}
@@ -383,8 +388,8 @@ func matchMaster(
 				maxScore := 0.0
 				bestMatch := ""
 				for _, wVal := range wlValues {
-					score2 := simCalc.Calculate(custVal, wVal)           //config algorthm global
-					score := simCalcByRowConfig.Calculate(custVal, wVal) //config algorthm per field
+					score2 := simCalc.Calculate(custVal, wVal)       //config algorthm global
+					score := simByRowConfig.Calculate(custVal, wVal) //config algorthm per field
 					if score > maxScore {
 						maxScore = score
 						bestMatch = wVal
@@ -441,7 +446,7 @@ func matchMaster(
 		}
 	}
 
-	// log.Printf("Generating report for matcher=%s, masterType=%s, batchId=%d", source, masterType, batchID)
+	log.Printf("Generating report for matcher=%s, masterType=%v, batchId=%v", source, masterType, batchID)
 
 	return &models.MatchResults{
 		MatchResult: matchResults,

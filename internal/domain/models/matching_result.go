@@ -2,6 +2,13 @@ package models
 
 import "time"
 
+type MatchResults struct {
+	MatchResult []MatchingResult
+	MatchDetail []MatchingDetail
+	MasterType  *string
+	BatchID     *int64
+}
+
 type MatchingResult struct {
 	Id              int64
 	BatchId         *int64

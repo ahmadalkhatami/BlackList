@@ -98,7 +98,8 @@ func (r *sqlBatchProcessingRepository) UpdateStatus(b *models.BatchProcessing) e
 			MatchedRecords = @MatchedRecords,
 			TotalRecords = @TotalRecords,
 			EndTime = GETDATE(),
-			ErrorMessage = @ErrorMessage
+			ErrorMessage = @ErrorMessage,
+			FilePath = @FilePath
 		WHERE Id = @Id
 	`
 
@@ -114,6 +115,7 @@ func (r *sqlBatchProcessingRepository) UpdateStatus(b *models.BatchProcessing) e
 		sql.Named("ProcessedRecords", b.ProcessedRecords),
 		sql.Named("MatchedRecords", b.MatchedRecords),
 		sql.Named("ErrorMessage", b.ErrorMessage),
+		sql.Named("FilePath", b.FilePath),
 		sql.Named("Id", b.Id),
 	)
 	if err != nil {

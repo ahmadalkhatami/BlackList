@@ -11,6 +11,8 @@ const (
 	AlgoJaroWinkler Algorithm = "jaro_winkler"
 	AlgoFuzzyWuzzy  Algorithm = "fuzzywuzzy"
 	AlgoCosine      Algorithm = "cosine"
+	AlgoToken       Algorithm = "token"
+	AlgoExact       Algorithm = "exact"
 )
 
 type similarityOptions struct {
@@ -54,6 +56,10 @@ func NewCalculator(algo Algorithm, opts ...Option) (Calculator, error) {
 		return newFuzzyWuzzyCalculator(), nil
 	case AlgoCosine:
 		return newCosineCalculator(cfg.boostThreshold), nil
+	case AlgoToken:
+		return newTokenCalculator(), nil
+	case AlgoExact:
+		return newExactCalculator(), nil
 	default:
 		return nil, ErrUnknownAlgorithm
 	}

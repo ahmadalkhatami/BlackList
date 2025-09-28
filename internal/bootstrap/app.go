@@ -64,16 +64,36 @@ func (a *app) Start() error {
 	fmt.Printf("Total Results : %v\n", len(results.MatchResult))
 	fmt.Printf("Total Details : %v\n", len(results.MatchDetail))
 
-	// resultSvc := container.ResultService
-	// // resultSvc.SetBatchID(results.BatchID)
-	// resultSvc.SetResults(results.MatchResult)
-	// resultSvc.SetDetails(results.MatchDetail)
-	// errSaveResults := resultSvc.Save(ctx)
-	// if errSaveResults != nil {
-	// 	return errSaveResults
-	// }
+	/** SAVE ALL RESULT
+	resultSvc := container.ResultService
+	// resultSvc.SetBatchID(results.BatchID)
+	resultSvc.SetResults(results.MatchResult)
+	resultSvc.SetDetails(results.MatchDetail)
+	errSaveResults := resultSvc.Save(ctx)
+	if errSaveResults != nil {
+		return errSaveResults
+	} */
 
 	/* bisa add proses generate excel langsung ambil dari collection/struct disini */
+
+	// gen := report.NewReportGenerator()
+
+	/*
+		// Generate 1 sheet section
+		errExcel := gen.GenerateFromResults(results)
+		if errExcel != nil {
+			fmt.Println("Gagal generate section:", errExcel)
+			return nil
+		}
+
+		if err := gen.Save("output/matcher/report.xlsx"); err != nil {
+			fmt.Println("Gagal simpan file:", err)
+			return nil
+		} */
+
+	// if err := gen.GenerateFromResultsCSV("output/matcher/report.csv", results); err != nil {
+	// 	log.Fatal(err)
+	// }
 
 	if debug {
 		fmt.Println("\n--- MATCH RESULTS ---")
@@ -212,7 +232,7 @@ func (a *app) Start() error {
 		}
 	}
 
-	fmt.Printf("⏱️ Matching selesai dalam: %s\n", duration)
+	fmt.Printf("\n ⏱️ Matching selesai dalam: %s\n", duration)
 
 	return nil
 }
